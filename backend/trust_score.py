@@ -48,3 +48,11 @@ def calculate_trust_score(bot_percentage, engagement_score):
         color        = "red"
         emoji        = "🔴"
         description  = "Multiple fraud signals detected - do not trust this account"
+
+    return {
+           "trust_score": final_score,
+           "verdict": verdict,
+           "color": color,
+           "emoji": emoji,
+           "description": description
+       } 

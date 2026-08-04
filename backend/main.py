@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fake_follower import analyze_fake_followers
 from engagement_analyzer import analyze_engagement
 from trust_score import calculate_trust_score
+from data_ingestion import fetch_instagram_profile
 
 app = FastAPI(
     title="TrustLens API",
@@ -60,6 +61,49 @@ def analyze_profile(data: dict):
 
     return {
         "username": username,
+        "fake_follower_analysis": fake_result,
+        "engagement_analysis": engagement_result,
+        "trust_score": trust_result
+    }
+
+@app.post("/analyze-live")
+def analyze_profile_live(data: dict):
+    username = data.get("username")
+
+    if not username:
+        return {"error": "Please provide a username"}
+
+    # ---- Fetch real Instagram data ----
+    try:
+        profile = fetch_instagram_profile(username)
+    except Exception as e:
+        return {"error": f"Could not fetch Instagram data: {str(e)}"}
+
+    # ---- Run Fake Follower Detection ----
+    fake_result = analyze_fake_followers(
+        profile["followers"], profile["following"], profile["posts"],
+        profile["has_profile_pic"], profile["bio_length"],
+        profile["has_external_url"], profile["is_private"]
+    )
+
+    # ---- Run Engagement Analyzer ----
+    # Note: real like/comment averages aren't available from this API yet,
+    # so we pass 0 for now — this is a known gap to flag to your supervisor
+    engagement_result = analyze_engagement(
+        profile["followers"], 0, 0, profile["posts"]
+    )
+
+    # ---- Combine into Trust Score ----
+    trust_result = calculate_trust_score(
+        fake_result["bot_percentage"],
+        engagement_result["engagement_score"]
+    )
+
+    return {
+        "username": profile["username"],
+        "full_name": profile["full_name"],
+        "is_verified": profile["is_verified"],
+        "raw_profile_data": profile,
         "fake_follower_analysis": fake_result,
         "engagement_analysis": engagement_result,
         "trust_score": trust_result
