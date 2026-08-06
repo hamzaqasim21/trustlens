@@ -52,3 +52,48 @@ def fetch_instagram_profile(username: str) -> dict:
     }
 
     return profile_data
+
+def fetch_engagement_data(username: str, amount: int = 12) -> dict:
+    """
+    Fetches recent posts and calculates real average likes/comments
+    for engagement analysis.
+    """
+    POSTS_URL = f"https://{RAPIDAPI_HOST}/get_ig_user_posts.php"
+
+    headers = {
+        "content-type": "application/x-www-form-urlencoded",
+        "x-rapidapi-host": RAPIDAPI_HOST,
+        "x-rapidapi-key": RAPIDAPI_KEY
+    }
+
+    payload = {
+        "username_or_url": username,
+        "pagination_token": "",
+        "amount": amount
+    }
+
+    response = requests.post(POSTS_URL, headers=headers, data=payload)
+
+    if response.status_code != 200:
+        raise Exception(f"Posts fetch failed with status {response.status_code}")
+
+    data = response.json()
+
+    # ---- Extract likes/comments from each post ----
+    edges = data.get("posts", [])
+    likes = []
+    comments = []
+
+    for edge in edges:
+        node = edge.get("node", edge)
+        likes.append(node.get("like_count", 0) or 0)
+        comments.append(node.get("comment_count", 0) or 0)
+
+    avg_likes = sum(likes) / len(likes) if likes else 0
+    avg_comments = sum(comments) / len(comments) if comments else 0
+
+    return {
+        "avg_likes": round(avg_likes, 1),
+        "avg_comments": round(avg_comments, 1),
+        "posts_analyzed": len(likes)
+    }
