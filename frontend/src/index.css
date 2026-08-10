@@ -1,0 +1,25 @@
+:root {
+  --color-bg: #F7F8FA;
+  --color-surface: #FFFFFF;
+  --color-text: #1A1A2E;
+  --color-text-muted: #5C6478;
+  --color-accent: #00D4AA;
+  --color-structure: #3D4759;
+  --color-warning: #E8A93B;
+  --color-danger: #E85D4D;
+
+  --font-display: 'Sora', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-display);
+}

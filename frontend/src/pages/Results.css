@@ -1,0 +1,230 @@
+.results-page {
+  min-height: 100vh;
+  background-image: radial-gradient(circle, #E4E7EC 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+.results-content {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 60px 24px 100px;
+}
+
+.results-profile-strip {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 40px;
+}
+
+.results-avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--color-text);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.results-fullname {
+  font-size: 19px;
+  font-weight: 600;
+  color: var(--color-text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.verified-badge {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-accent);
+  background: #E4F5F0;
+  padding: 3px 8px;
+  border-radius: 20px;
+}
+
+.results-username {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--color-text-muted);
+  margin-top: 2px;
+}
+
+.results-main {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 24px;
+  background: var(--color-surface);
+  border: 1px solid #E4E7EC;
+  border-radius: 8px;
+  padding: 40px;
+  margin-bottom: 24px;
+}
+
+.score-panel {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.score-ring {
+  width: 220px;
+  height: 220px;
+  transform: rotate(-90deg);
+}
+
+.score-ring-bg {
+  fill: none;
+  stroke: #EFF1F4;
+  stroke-width: 12;
+}
+
+.score-ring-fill {
+  fill: none;
+  stroke-width: 12;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 1.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.ring-green { stroke: #0E9C7A; }
+.ring-yellow { stroke: #B8791F; }
+.ring-red { stroke: #D14D3D; }
+
+.score-ring-center {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.score-number {
+  font-family: var(--font-mono);
+  font-size: 44px;
+  font-weight: 600;
+  color: var(--color-text);
+  letter-spacing: -1px;
+}
+
+.score-verdict {
+  font-size: 13px;
+  font-weight: 600;
+  margin-top: 4px;
+}
+
+.verdict-text-green { color: #0E9C7A; }
+.verdict-text-yellow { color: #B8791F; }
+.verdict-text-red { color: #D14D3D; }
+
+.checks-panel {
+  border-left: 1px solid #EFF1F4;
+  padding-left: 32px;
+}
+
+.checks-eyebrow {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 2px;
+  color: var(--color-text-muted);
+  margin-bottom: 20px;
+}
+
+.check-row {
+  display: grid;
+  grid-template-columns: 20px 1fr auto;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid #F5F6F8;
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 0.4s ease, transform 0.4s ease;
+}
+
+.check-row.check-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.check-mark {
+  color: var(--color-accent);
+  font-weight: 700;
+}
+
+.check-label {
+  font-size: 14px;
+  color: var(--color-text);
+}
+
+.check-value {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.modules-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.module-card {
+  background: var(--color-surface);
+  border: 1px solid #E4E7EC;
+  border-radius: 6px;
+  padding: 24px;
+  position: relative;
+}
+
+.module-card::before,
+.module-card::after {
+  content: '';
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-color: var(--color-accent);
+}
+.module-card::before {
+  top: 8px;
+  left: 8px;
+  border-top: 2px solid;
+  border-left: 2px solid;
+}
+.module-card::after {
+  bottom: 8px;
+  right: 8px;
+  border-bottom: 2px solid;
+  border-right: 2px solid;
+}
+
+.module-pending {
+  opacity: 0.55;
+}
+
+.module-eyebrow {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  color: var(--color-text-muted);
+  margin-bottom: 12px;
+}
+
+.module-score {
+  font-family: var(--font-mono);
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--color-text);
+  margin-bottom: 8px;
+}
+
+.module-desc {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  line-height: 1.4;
+}

@@ -1,0 +1,207 @@
+.dashboard-page {
+  min-height: 100vh;
+  background-image: radial-gradient(circle, #E4E7EC 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+.dashboard-content {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 60px 24px;
+}
+
+.dashboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 40px;
+}
+
+.dashboard-eyebrow {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 2px;
+  color: var(--color-accent);
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.dashboard-title {
+  font-size: 30px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.dashboard-new-scan {
+  background-color: var(--color-text);
+  color: var(--color-bg);
+  border: none;
+  border-radius: 5px;
+  padding: 12px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: var(--font-display);
+  cursor: pointer;
+}
+
+.dashboard-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 40px;
+}
+
+.stat-block {
+  background: var(--color-surface);
+  border: 1px solid #E4E7EC;
+  border-radius: 6px;
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  transition: transform 0.15s ease;
+}
+
+.stat-block:hover {
+  transform: translateY(-2px);
+}
+
+/* scanner-corner bracket marks */
+.stat-block::before,
+.stat-block::after {
+  content: '';
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-color: var(--color-accent);
+}
+.stat-block::before {
+  top: 8px;
+  left: 8px;
+  border-top: 2px solid;
+  border-left: 2px solid;
+}
+.stat-block::after {
+  bottom: 8px;
+  right: 8px;
+  border-bottom: 2px solid;
+  border-right: 2px solid;
+}
+
+.stat-value {
+  font-family: var(--font-mono);
+  font-size: 32px;
+  font-weight: 600;
+  color: var(--color-text);
+  letter-spacing: -1px;
+}
+
+.stat-value.score-green { color: #0E9C7A; }
+.stat-value.score-yellow { color: #B8791F; }
+.stat-value.score-red { color: #D14D3D; }
+
+.stat-label {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  margin-top: 4px;
+}
+
+.scan-log {
+  background: var(--color-surface);
+  border: 1px solid #E4E7EC;
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(26, 26, 46, 0.04);
+}
+
+.scan-log-header,
+.scan-log-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  padding: 16px 24px;
+}
+
+.scan-log-header {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: var(--color-text-muted);
+  border-bottom: 1px solid #E4E7EC;
+  background: #FBFBFC;
+}
+
+.scan-log-row {
+  border-bottom: 1px solid #EFF1F4;
+  align-items: center;
+  transition: background 0.15s ease;
+}
+
+.scan-log-row:hover {
+  background: #FAFBFC;
+}
+
+.scan-log-row:last-child {
+  border-bottom: none;
+}
+
+.scan-log-profile {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.scan-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: white;
+}
+
+.avatar-green { background: #0E9C7A; }
+.avatar-yellow { background: #B8791F; }
+.avatar-red { background: #D14D3D; }
+
+.scan-log-username {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--color-text);
+}
+
+.scan-log-score {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.scan-log-verdict {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: 20px;
+  width: fit-content;
+}
+
+.verdict-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.verdict-pill-green { background: #E4F5F0; color: #0E9C7A; }
+.verdict-pill-green .verdict-dot { background: #0E9C7A; }
+
+.verdict-pill-yellow { background: #FBF0DD; color: #B8791F; }
+.verdict-pill-yellow .verdict-dot { background: #B8791F; }
+
+.verdict-pill-red { background: #FBE7E4; color: #D14D3D; }
+.verdict-pill-red .verdict-dot { background: #D14D3D; }
