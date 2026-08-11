@@ -1,0 +1,144 @@
+.settings-page {
+  min-height: 100vh;
+}
+
+.settings-hero {
+  position: relative;
+  padding: 70px 24px 50px;
+  text-align: center;
+  overflow: hidden;
+}
+
+.settings-hero-shape {
+  position: absolute;
+  top: -140px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 420px;
+  height: 420px;
+  border-radius: 50%;
+  border: 50px solid var(--color-structure);
+  opacity: 0.06;
+}
+
+.settings-eyebrow {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 2px;
+  color: var(--color-accent);
+  font-weight: 600;
+  margin-bottom: 14px;
+  position: relative;
+}
+
+.settings-title {
+  font-size: 34px;
+  font-weight: 600;
+  color: var(--color-text);
+  letter-spacing: -1px;
+  position: relative;
+}
+
+.settings-content {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 0 24px 100px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.settings-card {
+  background: var(--color-surface);
+  border-radius: 12px;
+  padding: 32px;
+  box-shadow: 0 4px 20px rgba(26, 26, 46, 0.06);
+}
+
+.card-danger {
+  border: 1px solid #F3D2CC;
+}
+
+.settings-card-header {
+  margin-bottom: 24px;
+}
+
+.settings-card-tag {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  display: inline-block;
+  margin-bottom: 10px;
+}
+
+.tag-green { background: #E4F5F0; color: #0E9C7A; }
+.tag-amber { background: #FBF0DD; color: #B8791F; }
+.tag-red { background: #FBE7E4; color: #D14D3D; }
+
+.settings-card-header h2 {
+  font-size: 19px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.settings-field {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 18px;
+}
+
+.settings-field label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  margin-bottom: 6px;
+}
+
+.settings-field input {
+  border: 1px solid #E4E7EC;
+  border-radius: 6px;
+  padding: 12px 14px;
+  font-size: 15px;
+  font-family: var(--font-display);
+  color: var(--color-text);
+  outline: none;
+}
+
+.settings-field input:focus {
+  border-color: var(--color-accent);
+}
+
+.settings-save {
+  background-color: var(--color-text);
+  color: var(--color-bg);
+  border: none;
+  border-radius: 6px;
+  padding: 12px 22px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: var(--font-display);
+  cursor: pointer;
+  margin-top: 4px;
+}
+
+.settings-danger-text {
+  font-size: 14px;
+  color: var(--color-text-muted);
+  line-height: 1.5;
+  margin-bottom: 20px;
+}
+
+.settings-delete {
+  background-color: #D14D3D;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 12px 22px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: var(--font-display);
+  cursor: pointer;
+}
