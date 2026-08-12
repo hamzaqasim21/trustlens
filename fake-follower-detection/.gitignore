@@ -1,0 +1,12 @@
+# Runtime scrape cache (regenerated on demand) + bytecode
+cache/
+__pycache__/
+*.pyc
+
+# Local secrets (never commit the Apify token)
+.env
+.streamlit/secrets.toml
+
+# The repo-root .gitignore excludes *.pkl; re-include OUR trained model artifacts
+!artifacts/model.pkl
+!artifacts/scaler.pkl
