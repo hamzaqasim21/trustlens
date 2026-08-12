@@ -5,9 +5,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fake_follower import analyze_fake_followers
-from engagement_analyzer import analyze_engagement
+from engagement_analyzer import analyze_engagement, analyze_comment_authenticity
 from trust_score import calculate_trust_score
-from data_ingestion import fetch_instagram_profile, fetch_engagement_data
+from data_ingestion import fetch_instagram_profile, fetch_engagement_data, fetch_post_comments
 
 app = FastAPI(
     title="TrustLens API",
@@ -15,7 +15,6 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Allow React frontend to talk to this backend
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -44,8 +43,7 @@ def analyze_profile(data: dict):
     has_external_url= data.get("has_external_url", 0)
     is_private      = data.get("is_private", 0)
 
-    # Run all modules
-    fake_result       = analyze_fake_followers(
+    fake_result = analyze_fake_followers(
         followers, following, posts,
         has_profile_pic, bio_length, has_external_url, is_private
     )
@@ -73,26 +71,22 @@ def analyze_profile_live(data: dict):
     if not username:
         return {"error": "Please provide a username"}
 
-    # ---- Fetch real Instagram data ----
     try:
         profile = fetch_instagram_profile(username)
     except Exception as e:
         return {"error": f"Could not fetch Instagram data: {str(e)}"}
 
-    # ---- Run Fake Follower Detection ----
     fake_result = analyze_fake_followers(
         profile["followers"], profile["following"], profile["posts"],
         profile["has_profile_pic"], profile["bio_length"],
         profile["has_external_url"], profile["is_private"]
     )
 
-    # ---- Fetch real engagement data (likes/comments from recent posts) ----
     try:
         engagement_data = fetch_engagement_data(username)
     except Exception as e:
         return {"error": f"Could not fetch engagement data: {str(e)}"}
 
-    # ---- Run Engagement Analyzer with real numbers ----
     engagement_result = analyze_engagement(
         profile["followers"],
         engagement_data["avg_likes"],
@@ -100,7 +94,20 @@ def analyze_profile_live(data: dict):
         profile["posts"]
     )
 
-    # ---- Combine into Trust Score ----
+    # ---- Comment Authenticity Check (uses most recent post) ----
+    comment_authenticity = {
+        "verdict": "No posts available",
+        "comment_diversity_score": None,
+        "campaign_keyword_detected": False
+    }
+    try:
+        post_codes = engagement_data.get("post_codes", [])
+        if post_codes:
+            comments = fetch_post_comments(post_codes[0])
+            comment_authenticity = analyze_comment_authenticity(comments)
+    except Exception:
+        pass
+
     trust_result = calculate_trust_score(
         fake_result["bot_percentage"],
         engagement_result["engagement_score"]
@@ -114,5 +121,6 @@ def analyze_profile_live(data: dict):
         "engagement_data": engagement_data,
         "fake_follower_analysis": fake_result,
         "engagement_analysis": engagement_result,
+        "comment_authenticity": comment_authenticity,
         "trust_score": trust_result
     }

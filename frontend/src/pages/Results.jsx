@@ -1,25 +1,38 @@
 import { useEffect, useState } from 'react'
+import { useLocation, Navigate } from 'react-router-dom'
 import Navbar from '../components/Navbar'
 import '../components/Navbar.css'
 import './Results.css'
 
 function Results() {
+  const location = useLocation()
+  const result = location.state?.result
   const [revealed, setRevealed] = useState(0)
 
+  if (!result) {
+    return <Navigate to="/" replace />
+  }
+
+  const colorFromVerdict = (verdict) => {
+    if (verdict === 'Trusted') return 'green'
+    if (verdict === 'Moderate Risk') return 'yellow'
+    return 'red'
+  }
+
   const profile = {
-    username: 'cristiano',
-    fullName: 'Cristiano Ronaldo',
-    isVerified: true,
-    trustScore: 80.5,
-    verdict: 'Trusted',
-    color: 'green',
+    username: result.username,
+    fullName: result.full_name,
+    isVerified: result.is_verified,
+    trustScore: result.trust_score.trust_score,
+    verdict: result.trust_score.verdict,
+    color: colorFromVerdict(result.trust_score.verdict),
   }
 
   const checks = [
-    { label: 'Followers analyzed', value: '678,287,352' },
-    { label: 'Fake follower risk', value: '4%' },
-    { label: 'Engagement rate', value: '2.15% — Excellent' },
-    { label: 'Profile completeness', value: 'Verified account' },
+    { label: 'Followers analyzed', value: result.raw_profile_data.followers.toLocaleString() },
+    { label: 'Fake follower risk', value: `${result.fake_follower_analysis.bot_percentage}%` },
+    { label: 'Engagement rate', value: `${result.engagement_analysis.engagement_rate}% — ${result.engagement_analysis.status}` },
+    { label: 'Profile completeness', value: profile.isVerified ? 'Verified account' : 'Not verified' },
   ]
 
   useEffect(() => {
@@ -30,13 +43,13 @@ function Results() {
   }, [])
 
   const circumference = 2 * Math.PI * 90
-const targetOffset = circumference - (profile.trustScore / 100) * circumference
-const [ringOffset, setRingOffset] = useState(circumference)
+  const targetOffset = circumference - (profile.trustScore / 100) * circumference
+  const [ringOffset, setRingOffset] = useState(circumference)
 
-useEffect(() => {
-  const timer = setTimeout(() => setRingOffset(targetOffset), 200)
-  return () => clearTimeout(timer)
-}, [])
+  useEffect(() => {
+    const timer = setTimeout(() => setRingOffset(targetOffset), 200)
+    return () => clearTimeout(timer)
+  }, [])
 
   return (
     <div className="results-page">
@@ -64,9 +77,9 @@ useEffect(() => {
                 cx="100" cy="100" r="90"
                 className={`score-ring-fill ring-${profile.color}`}
                 style={{
-  strokeDasharray: circumference,
-  strokeDashoffset: ringOffset,
-}}
+                  strokeDasharray: circumference,
+                  strokeDashoffset: ringOffset,
+                }}
               />
             </svg>
             <div className="score-ring-center">
@@ -95,13 +108,13 @@ useEffect(() => {
         <div className="modules-grid">
           <div className="module-card">
             <div className="module-eyebrow">FAKE FOLLOWER DETECTION</div>
-            <div className="module-score score-green">96%</div>
-            <div className="module-desc">Likely genuine — low bot signal across follower base</div>
+            <div className="module-score score-green">{100 - result.fake_follower_analysis.bot_percentage}%</div>
+            <div className="module-desc">{result.fake_follower_analysis.verdict}</div>
           </div>
           <div className="module-card">
             <div className="module-eyebrow">ENGAGEMENT ANALYSIS</div>
-            <div className="module-score score-green">Excellent</div>
-            <div className="module-desc">2.15% engagement rate — above tier benchmark</div>
+            <div className="module-score score-green">{result.engagement_analysis.status}</div>
+            <div className="module-desc">{result.engagement_analysis.engagement_rate}% engagement rate — {result.engagement_analysis.tier} tier</div>
           </div>
           <div className="module-card module-pending">
             <div className="module-eyebrow">MISINFORMATION CHECK</div>

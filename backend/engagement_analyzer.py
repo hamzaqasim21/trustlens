@@ -70,3 +70,61 @@ def analyze_engagement(followers, likes_avg, comments_avg, posts):
         "flags":              flags,
         "total_flags":        len(flags)
     }
+
+from collections import Counter
+
+def analyze_comment_authenticity(comments: list) -> dict:
+    """
+    Analyzes comment text for genuine diversity vs bot-like patterns.
+    Recognizes 'campaign keyword' patterns (many different users posting
+    the same short word, e.g. 'link') as a legitimate engagement tactic,
+    not a fraud signal.
+    """
+    if not comments:
+        return {
+            "comment_diversity_score": None,
+            "campaign_keyword_detected": False,
+            "verdict": "No comments available to analyze"
+        }
+
+    total = len(comments)
+    short_comments = [c for c in comments if len(c.split()) <= 3]
+    long_comments = [c for c in comments if len(c.split()) > 3]
+
+    short_ratio = len(short_comments) / total
+
+    # ---- Detect campaign keyword pattern ----
+    campaign_keyword_detected = False
+    if short_comments:
+        short_counter = Counter(c.lower().strip() for c in short_comments)
+        most_common_text, most_common_count = short_counter.most_common(1)[0]
+        # If one short phrase makes up a large chunk of short comments,
+        # and short comments are a meaningful share of all comments,
+        # treat it as a legitimate campaign, not bot spam.
+        if most_common_count >= 3 and (most_common_count / len(short_comments)) > 0.3:
+            campaign_keyword_detected = True
+
+    # ---- Measure genuine diversity in the longer, non-keyword comments ----
+    if long_comments:
+        unique_long = len(set(c.lower().strip() for c in long_comments))
+        diversity_score = round((unique_long / len(long_comments)) * 100, 1)
+    else:
+        diversity_score = None
+
+    # ---- Verdict ----
+    if campaign_keyword_detected:
+        verdict = "Campaign keyword pattern detected — likely a legitimate call-to-action, not bot activity"
+    elif diversity_score is not None and diversity_score < 40:
+        verdict = "Low comment diversity — possible bot/comment-pod activity"
+    elif diversity_score is not None:
+        verdict = "Comments show healthy diversity — likely genuine engagement"
+    else:
+        verdict = "Not enough data to determine authenticity"
+
+    return {
+        "total_comments_analyzed": total,
+        "short_comment_ratio": round(short_ratio * 100, 1),
+        "campaign_keyword_detected": campaign_keyword_detected,
+        "comment_diversity_score": diversity_score,
+        "verdict": verdict
+    }

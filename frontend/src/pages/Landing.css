@@ -83,3 +83,10 @@
   color: var(--color-text-muted);
   font-family: var(--font-mono);
 }
+
+.scan-error {
+  color: #D14D3D;
+  font-size: 14px;
+  margin-top: 16px;
+  font-family: var(--font-mono);
+}
