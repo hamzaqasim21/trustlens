@@ -5,7 +5,7 @@ extracts 7 account-level features and classifies the account as **Real** or
 **Fake / bot-like** using machine-learning models trained on two merged public
 datasets.
 
-**Owner:** Ali Ahmad (Backend + AI/ML) · Air University Islamabad · FCAI 2025-26
+**Owner:** Ali Ahmad
 
 ---
 
@@ -60,7 +60,7 @@ These are expanded into **18 engineered features** (log transforms, ratios like
 `follows_to_followers`, `engagement_ratio`, percentile-threshold flags) — see
 `feature_engineering.py` / `predict_core.py`.
 
-## 4. Which attributes matter (for the supervisor)
+## 4. Which attributes matter
 
 Correlation of each raw attribute with the **fake** label (from `feature_analysis.py`):
 
@@ -125,7 +125,7 @@ python check_user.py --manual
 
 ---
 
-## 8. Suggested demo flow (tomorrow)
+## 8. demo flow
 
 1. Open the **web app**, go to *How the model works* — show the 1,890-account
    dataset, the two merged sources, feature importance, and 94.4% accuracy.
@@ -152,9 +152,6 @@ python check_user.py --manual
 ---
 
 ## 10. Deploy the web app (free — Streamlit Community Cloud)
-
-> Not Vercel: Vercel is serverless and cannot host a long-running Streamlit
-> server. Use **Streamlit Community Cloud**, which is built for this.
 
 This module lives in **`fake-follower-detection/`** inside the team repo
 `hamzaqasim21/trustlens`. To deploy just this app:
