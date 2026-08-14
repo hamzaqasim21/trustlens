@@ -1,0 +1,8 @@
+attribute,avg_real,avg_fake,corr_with_fake,pushes_toward
+Has profile picture,0.989,0.493,-0.622,REAL
+Digits-in-username ratio,0.028,0.24,0.567,FAKE
+Private account,0.649,0.312,-0.307,REAL
+Bio length (chars),29.403,7.511,-0.28,REAL
+Posts,102.041,6.732,-0.176,REAL
+Following,567.155,937.712,0.163,FAKE
+Followers,41323.452,133.141,-0.036,REAL

@@ -1,0 +1,39 @@
+{
+  "model": "XGBoost",
+  "test_accuracy": 0.9444,
+  "test_f1_macro": 0.9325,
+  "rf_test_accuracy": 0.9339,
+  "rf_test_f1_macro": 0.9213,
+  "n_accounts": 1890,
+  "n_real": 1342,
+  "n_fake": 548,
+  "raw_features": [
+    "profile_pic",
+    "username_digit_ratio",
+    "description_length",
+    "private",
+    "posts_count",
+    "followers_count",
+    "follows_count"
+  ],
+  "feature_cols": [
+    "profile_pic",
+    "username_digit_ratio",
+    "description_length",
+    "private",
+    "posts_count",
+    "followers_count",
+    "follows_count",
+    "log_followers",
+    "log_follows",
+    "log_posts",
+    "followers_per_post",
+    "follows_to_followers",
+    "engagement_ratio",
+    "social_reach",
+    "has_no_posts",
+    "has_many_follows",
+    "has_many_followers",
+    "follow_activity_score"
+  ]
+}

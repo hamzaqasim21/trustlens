@@ -1,0 +1,15 @@
+# ---- TrustLens web app runtime (this is what Streamlit Community Cloud installs) ----
+streamlit>=1.40
+pandas>=2.2
+numpy>=1.26
+scikit-learn==1.8.0     # pinned: must match the version that created artifacts/*.pkl
+xgboost==3.3.0          # pinned: must match the saved model.pkl
+matplotlib>=3.8
+apify-client>=3.0
+joblib>=1.3
+
+# ---- Local-only extras for RE-TRAINING (NOT needed by the deployed app) ----
+# Uncomment if you want to re-run the training scripts on a fresh machine:
+# rich>=13               # pretty terminal output in check_user.py
+# imbalanced-learn>=0.12 # SMOTE, used by feature_engineering/train scripts
+# tensorflow>=2.15       # LSTM in train_models.py (heavy - keep it OFF the cloud deploy)
