@@ -45,6 +45,7 @@ def fetch_instagram_profile(username: str) -> dict:
         "posts":             data.get("media_count", 0),
         "has_profile_pic":   bool(data.get("profile_pic_url")),
         "bio_length":        len(data.get("biography", "") or ""),
+        "biography":         data.get("biography", "") or "",
         "has_external_url":  bool(data.get("external_url")),
         "is_private":        bool(data.get("is_private", False)),
         "full_name":         data.get("full_name", ""),

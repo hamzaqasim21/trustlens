@@ -8,6 +8,7 @@ from fake_follower import analyze_fake_followers
 from engagement_analyzer import analyze_engagement, analyze_comment_authenticity
 from trust_score import calculate_trust_score
 from data_ingestion import fetch_instagram_profile, fetch_engagement_data, fetch_post_comments
+from credential_extractor import calculate_credential_confidence
 
 app = FastAPI(
     title="TrustLens API",
@@ -108,6 +109,11 @@ def analyze_profile_live(data: dict):
     except Exception:
         pass
 
+    # ---- Credential Extraction & Confidence Scoring ----
+    credential_result = calculate_credential_confidence(
+        profile.get("biography", ""), profile["is_verified"]
+    )
+
     trust_result = calculate_trust_score(
         fake_result["bot_percentage"],
         engagement_result["engagement_score"]
@@ -122,5 +128,6 @@ def analyze_profile_live(data: dict):
         "fake_follower_analysis": fake_result,
         "engagement_analysis": engagement_result,
         "comment_authenticity": comment_authenticity,
+        "credential_analysis": credential_result,
         "trust_score": trust_result
     }
