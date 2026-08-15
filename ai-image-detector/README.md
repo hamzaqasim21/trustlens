@@ -1,18 +1,6 @@
----
-title: TrustLens AI Image Detector
-emoji: 🛡️
-colorFrom: blue
-colorTo: green
-sdk: streamlit
-app_file: app.py
-python_version: "3.11"
-pinned: false
-license: mit
----
-
 # TrustLens — AI-Generated Profile Image Detector
 
-Module 6.7 of the TrustLens FYP · Ali Ahmad (231667) · Air University Islamabad · FCAI 2025-26
+Module 6.7 of the TrustLens FYP · Ali Ahmad (231667)
 
 Decides whether a profile picture is a real photograph or an AI-generated face. Before
 classifying, it checks whether the image contains a human face at all, so pets, logos and
