@@ -1,6 +1,6 @@
 # TrustLens — Fake Follower Detection
 
-Module 6.4 of the TrustLens FYP · Ali Ahmad (231667) · Air University Islamabad · FCAI 2025-26
+Module 6.4 of the TrustLens FYP · Ali Ahmad (231667)
 
 Classifies a public Instagram account as **Real** or **Fake / bot-like** from seven
 account-level attributes, with an *Uncertain* band when the model is not confident enough.
