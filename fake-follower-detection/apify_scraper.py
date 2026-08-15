@@ -1,28 +1,42 @@
 """
-TrustLens - Fake Follower Detection
-Fetch a public Instagram profile's raw attributes via Apify.
-
-Uses Apify's official "Instagram Profile Scraper" actor
-(apify/instagram-profile-scraper) and maps its output onto the exact 7 raw
-features the model was trained on.
-
-The Apify token is read from the APIFY_API_TOKEN environment variable
-(never hard-coded). Set it once per terminal session:
-
-    Windows PowerShell:   $env:APIFY_API_TOKEN = "apify_api_xxx"
-    Windows CMD:          set APIFY_API_TOKEN=apify_api_xxx
-    macOS/Linux:          export APIFY_API_TOKEN=apify_api_xxx
+Fetch a public Instagram profile through Apify and map it to the 7 raw features.
+Reads the API token from the APIFY_API_TOKEN environment variable.
 """
 import json
 import os
 from pathlib import Path
+from urllib.parse import urlparse
 
 from predict_core import username_digit_ratio, RAW_FEATURES
 
-# Apify's dedicated, low-cost Instagram profile scraper.
 PROFILE_SCRAPER_ACTOR = "apify/instagram-profile-scraper"
 
 CACHE_DIR = Path(__file__).parent / "cache"
+
+# Instagram paths that are app sections rather than usernames
+_RESERVED_PATHS = {
+    "p", "reel", "reels", "tv", "stories", "explore",
+    "accounts", "direct", "about", "developer", "legal", "privacy",
+}
+
+
+def extract_username(raw: str) -> str:
+    """Accept a username, '@username' or a profile URL and return the username."""
+    raw = (raw or "").strip()
+    if not raw:
+        raise ValueError("Please enter a username or profile URL.")
+
+    if "instagram.com" in raw.lower():
+        url = raw if raw.startswith(("http://", "https://")) else f"https://{raw}"
+        segment = urlparse(url).path.strip("/").split("/")[0]
+        if not segment or segment.lower() in _RESERVED_PATHS:
+            raise ValueError(
+                "That looks like an Instagram link but not a profile link "
+                "(e.g. a post/reel URL). Paste the profile URL or just the username."
+            )
+        return segment.lstrip("@").lower()
+
+    return raw.lstrip("@").lower()
 
 
 def _get_token(token: str | None) -> str:
@@ -38,12 +52,11 @@ def _get_token(token: str | None) -> str:
 
 def scrape_profile(username: str, token: str | None = None,
                    use_cache: bool = True) -> dict:
-    """Run the Apify actor for one username and return the raw profile JSON.
+    """Run the Apify actor and return the raw profile JSON.
 
-    Results are cached to cache/<username>.json so the demo can be re-run
-    instantly (and offline) without spending Apify credits again.
+    Results are cached to cache/<username>.json to avoid repeat API calls.
     """
-    username = username.lstrip("@").strip().lower()
+    username = extract_username(username)
     CACHE_DIR.mkdir(exist_ok=True)
     cache_file = CACHE_DIR / f"{username}.json"
 
@@ -51,7 +64,6 @@ def scrape_profile(username: str, token: str | None = None,
         with open(cache_file, encoding="utf-8") as f:
             return json.load(f)
 
-    # Import here so the rest of the module works even without apify_client.
     from apify_client import ApifyClient
 
     client = ApifyClient(_get_token(token))
@@ -60,8 +72,7 @@ def scrape_profile(username: str, token: str | None = None,
     if run is None:
         raise RuntimeError("Apify actor did not finish (timed out or failed to start).")
 
-    # apify-client >= 3 returns a pydantic Run object (run.default_dataset_id);
-    # older versions returned a plain dict (run["defaultDatasetId"]). Support both.
+    # apify-client 3.x returns a Run object; older versions returned a dict
     dataset_id = getattr(run, "default_dataset_id", None)
     if dataset_id is None and isinstance(run, dict):
         dataset_id = run.get("defaultDatasetId")
@@ -89,8 +100,7 @@ def scrape_profile(username: str, token: str | None = None,
 
 
 def _first(profile: dict, *keys, default=None):
-    """Return the first present, non-None value among several possible keys.
-    Makes the mapping robust to small differences between Apify actor versions."""
+    """First non-None value among the given keys."""
     for k in keys:
         if k in profile and profile[k] is not None:
             return profile[k]
@@ -98,10 +108,7 @@ def _first(profile: dict, *keys, default=None):
 
 
 def profile_to_raw_features(profile: dict) -> dict:
-    """Map Apify's profile JSON -> the 7 raw features the model expects.
-
-    Tolerant of alternate field names so the live demo does not break if the
-    actor output schema shifts slightly (followersCount vs followers, etc.)."""
+    """Map the Apify profile JSON to the 7 raw features."""
     username = _first(profile, "username", "ownerUsername", default="") or ""
     biography = _first(profile, "biography", "bio", default="") or ""
     profile_pic_url = _first(profile, "profilePicUrl", "profilePicUrlHD",
@@ -117,13 +124,12 @@ def profile_to_raw_features(profile: dict) -> dict:
         "followers_count": int(_first(profile, "followersCount", "followers", default=0) or 0),
         "follows_count": int(_first(profile, "followsCount", "following", "follows", default=0) or 0),
     }
-    # sanity: make sure every expected key is present
     assert set(raw) == set(RAW_FEATURES)
     return raw
 
 
 def profile_summary(profile: dict) -> dict:
-    """A few human-friendly fields for display (not used by the model)."""
+    """Display fields, not used by the model."""
     return {
         "username": profile.get("username", ""),
         "full_name": profile.get("fullName", ""),

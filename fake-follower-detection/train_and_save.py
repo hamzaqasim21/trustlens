@@ -1,19 +1,8 @@
 """
-TrustLens - Fake Follower Detection
-Train the classifier and SAVE it, so any new Instagram account can be scored
-later without retraining.
+Train the classifier and save it to artifacts/ for later prediction.
 
-This reuses the EXACT pipeline from feature_engineering.py + train_models.py:
-  1. load master_dataset.csv
-  2. split train/test (random_state=42, stratified)  -- split BEFORE thresholds
-  3. add row-wise features
-  4. learn the 90th-percentile thresholds from TRAIN ONLY
-  5. scale (fit on train)  ->  SMOTE on train  ->  train models
-  6. evaluate on the untouched test set
-  7. save model + scaler + thresholds + feature importance  ->  artifacts/
-
-XGBoost is saved as the production model because it had the best F1-macro,
-but RandomForest is also trained here as a cross-check.
+Same pipeline as feature_engineering.py and train_models.py. XGBoost is saved as
+the production model; RandomForest is trained alongside as a comparison.
 """
 import json
 
@@ -33,19 +22,19 @@ from predict_core import (
 
 RANDOM_STATE = 42
 
-# ---- 1. Load merged master dataset ----
+# Load merged dataset
 df = pd.read_csv("master_dataset.csv")
 print(f"Master dataset: {df.shape[0]} accounts "
       f"({(df['fake'] == 0).sum()} real, {(df['fake'] == 1).sum()} fake)")
 
-# ---- 2. Split FIRST (before any threshold is computed -> no leakage) ----
+# Split before computing thresholds, otherwise test data leaks into them
 train_df, test_df = train_test_split(
     df, test_size=0.2, stratify=df["fake"], random_state=RANDOM_STATE
 )
 train_df = add_row_wise_features(train_df.copy())
 test_df = add_row_wise_features(test_df.copy())
 
-# ---- 3. Thresholds from TRAIN ONLY ----
+# Thresholds from the training split only
 follows_threshold = float(train_df["follows_count"].quantile(0.90))
 followers_threshold = float(train_df["followers_count"].quantile(0.90))
 print(f"Thresholds (train 90th pct)  follows={follows_threshold:.1f}  "
@@ -59,7 +48,7 @@ y_train = train_df["fake"]
 X_test_raw = test_df[FEATURE_COLS]
 y_test = test_df["fake"]
 
-# ---- 4. Scale (fit on train) then SMOTE (train only) ----
+# Scale on train, then SMOTE on train only
 scaler = StandardScaler()
 X_train_scaled = scaler.fit_transform(X_train_raw)
 X_test_scaled = scaler.transform(X_test_raw)
@@ -78,7 +67,7 @@ def report(name, y_true, y_pred):
     return acc, f1
 
 
-# ---- 5. Train models ----
+# Train
 rf = RandomForestClassifier(n_estimators=300, max_depth=12,
                             random_state=RANDOM_STATE, n_jobs=-1)
 rf.fit(X_train_bal, y_train_bal)
@@ -91,7 +80,7 @@ xgb_clf = xgb.XGBClassifier(
 xgb_clf.fit(X_train_bal, y_train_bal)
 xgb_acc, xgb_f1 = report("XGBoost", y_test, xgb_clf.predict(X_test_scaled))
 
-# ---- 6. Feature importance (from the saved production model = XGBoost) ----
+# Feature importance from the saved model
 feat_imp = (
     pd.DataFrame({"feature": FEATURE_COLS, "importance": xgb_clf.feature_importances_})
     .sort_values("importance", ascending=False)
@@ -100,7 +89,7 @@ feat_imp = (
 print("\nTop features driving the classification:")
 print(feat_imp.head(10).to_string(index=False))
 
-# ---- 7. Save everything needed for live prediction ----
+# Save artifacts
 thresholds = {
     "follows_threshold": follows_threshold,
     "followers_threshold": followers_threshold,

@@ -1,13 +1,4 @@
-"""
-TrustLens - Fake Follower Detection  |  Web demo (Streamlit)
-
-Run it with:
-    streamlit run app.py
-
-Then in the browser: type an Instagram username -> Analyze.
-For live scraping, set your Apify token first:
-    $env:APIFY_API_TOKEN = "apify_api_xxx"     (PowerShell)
-"""
+"""Streamlit interface for the fake follower detector."""
 import json
 import os
 from pathlib import Path
@@ -22,9 +13,7 @@ from predict_core import (
     RAW_FEATURES, RAW_LABELS, FEATURE_COLS,
 )
 
-# All data/artifact paths are resolved relative to THIS file, not the current
-# working directory - so the app works whether it is launched from its own
-# folder (local) or from the repo root (Streamlit Cloud subfolder deploy).
+# Paths resolve relative to this file so the app runs from any working directory
 HERE = Path(__file__).parent
 
 st.set_page_config(page_title="TrustLens - Fake Follower Detection",
@@ -34,9 +23,6 @@ REAL_GREEN = "#16a34a"
 FAKE_RED = "#dc2626"
 
 
-# --------------------------------------------------------------------------
-# Cached loaders
-# --------------------------------------------------------------------------
 @st.cache_resource
 def get_model():
     return load_artifacts()
@@ -67,15 +53,11 @@ except Exception as e:
     MODEL_ERR = str(e)
 
 
-# --------------------------------------------------------------------------
-# Small drawing helpers
-# --------------------------------------------------------------------------
 def gauge(prob_fake: float):
-    """Semicircular real->fake gauge."""
+    """Semicircular real/fake gauge."""
     fig, ax = plt.subplots(figsize=(4.2, 2.3), subplot_kw={"aspect": "equal"})
     fig.patch.set_alpha(0)
     ax.axis("off")
-    # coloured arc background
     theta = np.linspace(np.pi, 0, 200)
     for i in range(len(theta) - 1):
         frac = i / len(theta)
@@ -83,7 +65,6 @@ def gauge(prob_fake: float):
         ax.plot([np.cos(theta[i]), np.cos(theta[i + 1])],
                 [np.sin(theta[i]), np.sin(theta[i + 1])],
                 color=color, lw=16, solid_capstyle="butt")
-    # needle
     ang = np.pi * (1 - prob_fake)
     ax.plot([0, 0.82 * np.cos(ang)], [0, 0.82 * np.sin(ang)],
             color="#111", lw=3, zorder=5)
@@ -153,16 +134,16 @@ def render_results(raw: dict, summary: dict | None):
         )
         st.pyplot(gauge(prob_fake), width="stretch")
         if v["band"] == "uncertain":
-            st.info("Confidence below 60% → flagged for **manual review** "
-                    "(TrustLens 'Wrong Score Handling' policy), not a hard verdict.")
+            st.info("Confidence below 60% - flagged for manual review "
+                    "rather than a hard verdict.")
 
     st.divider()
-    st.markdown("#### Why? How this account compares to the dataset averages")
+    st.markdown("#### Comparison with dataset averages")
     _why_table(raw)
 
 
 def _why_table(raw: dict):
-    """Show the account's key numbers next to the typical Real vs Fake values."""
+    """Account values next to the per-class averages."""
     m = get_master()
     real = m[m["fake"] == 0]
     fake = m[m["fake"] == 1]
@@ -176,13 +157,10 @@ def _why_table(raw: dict):
             "Typical FAKE": f"{fake[k].mean():.2f}",
         })
     st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
-    st.caption("The model weighs all 18 engineered features together; this table "
-               "shows the 7 raw inputs vs. the average real/fake account for intuition.")
+    st.caption("The model uses all 18 engineered features; this table shows the 7 "
+               "raw inputs against the per-class averages.")
 
 
-# --------------------------------------------------------------------------
-# Sidebar
-# --------------------------------------------------------------------------
 st.sidebar.title("🛡️ TrustLens")
 st.sidebar.caption("Fake Follower Detection module")
 
@@ -195,7 +173,7 @@ else:
     st.sidebar.error("Model not trained yet.\nRun: python train_and_save.py")
 
 st.sidebar.divider()
-# Token resolution order: OS env var (local) -> Streamlit Cloud secrets -> sidebar paste.
+# token: environment variable, then Streamlit secrets, then manual entry
 env_token = os.environ.get("APIFY_API_TOKEN", "")
 if not env_token:
     try:
@@ -212,9 +190,6 @@ if token:
     os.environ["APIFY_API_TOKEN"] = token
 
 
-# --------------------------------------------------------------------------
-# Main
-# --------------------------------------------------------------------------
 st.title("Fake Follower / Bot Account Detection")
 st.markdown("Enter any **public Instagram username**. TrustLens scrapes it live via "
             "Apify, extracts 7 account features, and classifies it **Real or Fake** "
@@ -229,7 +204,9 @@ tab_check, tab_model = st.tabs(["🔎 Check an account", "📊 How the model wor
 with tab_check:
     c1, c2 = st.columns([3, 1])
     username = c1.text_input("Instagram username", value="ali.ahmad.r8",
-                             placeholder="e.g. ali.ahmad.r8")
+                             placeholder="e.g. ali.ahmad.r8",
+                             help="Username, @username, or a full profile URL "
+                                  "like https://www.instagram.com/ali.ahmad.r8/")
     c2.write("")
     c2.write("")
     go = c2.button("🔍 Analyze", type="primary", width="stretch")

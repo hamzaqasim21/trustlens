@@ -1,172 +1,129 @@
-# TrustLens — Fake Follower Detection Module
+# TrustLens — Fake Follower Detection
 
-Module 6.4 of the **TrustLens** FYP. Given any public Instagram account, it
-extracts 7 account-level features and classifies the account as **Real** or
-**Fake / bot-like** using machine-learning models trained on two merged public
-datasets.
+Module 6.4 of the TrustLens FYP · Ali Ahmad (231667) · Air University Islamabad · FCAI 2025-26
 
-**Owner:** Ali Ahmad
-
----
-
-## 1. What it does
+Classifies a public Instagram account as **Real** or **Fake / bot-like** from seven
+account-level attributes, with an *Uncertain* band when the model is not confident enough.
 
 ```
-Instagram username ──► Apify scraper ──► 7 raw features ──► feature engineering
-                                                                     │
-                                                                     ▼
-                                        StandardScaler ──► XGBoost ──► Real / Fake / Uncertain + confidence
+username or profile URL -> Apify -> 7 raw features -> 18 engineered features
+                                                              |
+                                        StandardScaler -> XGBoost -> Real / Fake / Uncertain
 ```
 
-Verdicts use a **3-way band** (matching the scope document's *Wrong Score
-Handling* policy): confident **Real** / confident **Fake** / **Uncertain –
-needs review** when model confidence is below 60%.
+## Dataset
 
-Trained on **1,890 accounts** (1,342 real, 548 fake). Best model (XGBoost)
-scores **94.4% accuracy / 0.93 F1-macro** on a held-out test set.
+Two public datasets merged down to their shared attributes:
 
----
+| Source | Format | Contents |
+|---|---|---|
+| InstaFake (Akyon & Kalfaoglu) | JSON | real and fake accounts |
+| IFSG / Goyal | CSV | real and fake accounts |
 
-## 2. Project files
+Result: **1,890 accounts** — 1,342 real, 548 fake.
 
-| File | Purpose |
-|------|---------|
-| `merge.py` | Merge **InstaFake** (JSON) + **IFSG/Goyal** (CSV) into `master_dataset.csv` |
-| `feature_engineering.py` | Train/test split, build 18 engineered features (no data leakage) |
-| `train_models.py` | Train & compare RandomForest, XGBoost, LSTM |
-| `train_and_save.py` | Re-train the best model and **save it** to `artifacts/` for prediction |
-| `predict_core.py` | Shared feature logic + model load/save (used by CLI **and** web app) |
-| `apify_scraper.py` | Fetch a real Instagram profile via Apify, map to the 7 features |
-| `check_user.py` | **CLI demo** — classify a username in the terminal |
-| `app.py` | **Web demo** — Streamlit UI |
-| `feature_analysis.py` | Which attributes decide Real vs Fake (charts + tables) |
-| `artifacts/` | Saved model, scaler, thresholds, feature-importance charts |
+## Results
 
----
+Held-out test set of 378 accounts:
 
-## 3. The 7 raw features (extractable for ANY public profile)
+| Model | Accuracy | F1-macro |
+|---|---|---|
+| Random Forest | 93.4% | 0.921 |
+| **XGBoost** | **94.4%** | **0.933** |
+| LSTM | 93.7% | 0.924 |
+
+XGBoost is saved as the production model.
+
+### Attribute contribution
+
+Correlation of each raw attribute with the fake label:
+
+| Attribute | Avg real | Avg fake | Correlation |
+|---|---:|---:|---:|
+| Has profile picture | 0.99 | 0.49 | −0.62 |
+| Digits in username | 0.03 | 0.24 | +0.57 |
+| Private account | 0.65 | 0.31 | −0.31 |
+| Bio length | 29 | 7.5 | −0.28 |
+| Posts | 102 | 6.7 | −0.18 |
+| Following | 567 | 938 | +0.16 |
+
+By XGBoost importance: `log_followers` (37%), `log_posts` (18%), `profile_pic` (10%),
+`follows_to_followers` (9%).
+
+## Features
+
+Seven raw attributes are read from each profile:
 
 | Feature | Meaning |
-|---------|---------|
-| `profile_pic` | Has a profile picture (1/0) |
+|---|---|
+| `profile_pic` | has a profile picture |
 | `username_digit_ratio` | digits ÷ username length |
-| `description_length` | number of characters in the bio |
-| `private` | account is private (1/0) |
+| `description_length` | characters in the bio |
+| `private` | account is private |
 | `posts_count` | total posts |
 | `followers_count` | total followers |
-| `follows_count` | total accounts followed |
+| `follows_count` | accounts followed |
 
-These are expanded into **18 engineered features** (log transforms, ratios like
-`follows_to_followers`, `engagement_ratio`, percentile-threshold flags) — see
-`feature_engineering.py` / `predict_core.py`.
+These expand to 18 engineered features — log transforms, ratios such as
+`follows_to_followers` and `engagement_ratio`, and percentile-threshold flags.
 
-## 4. Which attributes matter
+The train/test split happens **before** the percentile thresholds are computed, so no test
+data influences them. SMOTE is applied to the training split only.
 
-Correlation of each raw attribute with the **fake** label (from `feature_analysis.py`):
+## Files
 
-| Attribute | Avg Real | Avg Fake | Corr. w/ fake | Signal |
-|-----------|---------:|---------:|--------------:|--------|
-| Has profile picture | 0.99 | 0.49 | **−0.62** | no picture ⇒ fake |
-| Digits in username | 0.03 | 0.24 | **+0.57** | more digits ⇒ fake |
-| Private account | 0.65 | 0.31 | −0.31 | real more often private |
-| Bio length | 29 | 7.5 | −0.28 | real = longer bios |
-| Posts | 102 | 6.7 | −0.18 | real posts more |
-| Following | 567 | 938 | +0.16 | fake follows more |
+| File | Purpose |
+|---|---|
+| `merge.py` | Merge the two datasets into `master_dataset.csv` |
+| `feature_engineering.py` | Split and build the engineered features |
+| `train_models.py` | Compare RandomForest, XGBoost and LSTM |
+| `train_and_save.py` | Train the production model and write `artifacts/` |
+| `predict_core.py` | Shared feature logic and model loading |
+| `apify_scraper.py` | Fetch a profile through Apify |
+| `check_user.py` | Command-line interface |
+| `app.py` | Streamlit interface |
+| `feature_analysis.py` | Attribute analysis and charts |
 
-XGBoost's own top features: `log_followers` (37%), `log_posts` (18%),
-`profile_pic` (10%), `follows_to_followers` (9%).
+## Setup
 
----
-
-## 5. Setup (one time)
-
-```bash
+```
 pip install -r requirements.txt
 ```
 
-Get a free **Apify** token: sign in at https://apify.com → *Settings → API & Integrations*
-→ copy the **Personal API token** (`apify_api_...`).
+Set the Apify token before any live lookup:
 
-Set it for the session (do **not** paste it into any file):
-
-```powershell
-$env:APIFY_API_TOKEN = "apify_api_xxxxxxxxxxxxxxxxx"
+```
+$env:APIFY_API_TOKEN = "apify_api_..."
 ```
 
----
+## Usage
 
-## 6. Run the whole pipeline
+Rebuild the dataset and model:
 
-```bash
-python merge.py                # build master_dataset.csv
-python feature_engineering.py  # build engineered train/test sets
-python train_models.py         # compare RF / XGBoost / LSTM
-python train_and_save.py       # save the best model to artifacts/
-python feature_analysis.py     # attribute analysis + charts
+```
+python merge.py
+python feature_engineering.py
+python train_and_save.py
 ```
 
-## 7. Demo — check a real user
+Check an account:
 
-**Web app (recommended):**
-```bash
+```
 streamlit run app.py
-```
-→ type a username (e.g. `ali.ahmad.r8`) → **Analyze**.
-
-**Command line:**
-```bash
-python check_user.py ali.ahmad.r8
-```
-
-**Offline / no token (backup):**
-```bash
+python check_user.py <username or profile URL>
 python check_user.py --manual
 ```
 
----
+The input accepts a username, `@username`, or a full profile URL. Post and reel links are
+rejected because they do not identify a single profile.
 
-## 8. demo flow
+## Notes
 
-1. Open the **web app**, go to *How the model works* — show the 1,890-account
-   dataset, the two merged sources, feature importance, and 94.4% accuracy.
-2. Switch to *Check an account*, enter an **established** account (many
-   followers, e.g. a public figure) → **REAL** with high confidence.
-3. Enter a known bot / spam account (or use manual mode with 20 followers /
-   3000 following) → **FAKE**.
-4. Enter a **small / brand-new** account (e.g. `ali.ahmad.r8`) → **UNCERTAIN**
-   — a good chance to explain the 60%-confidence review band from the scope doc.
-5. Explain **why**: point at the profile-picture, digit-ratio, and
-   follows-to-followers signals in the comparison table.
-
-## 9. Notes & honest limitations
-
-- This module classifies an **individual account** (real vs fake). The scope
-  document also describes a graph/Manhattan-distance approach for scoring a
-  whole follower base — that is a natural next step built on this classifier.
-- Apify almost always returns a profile-picture URL, so `profile_pic` is usually
-  1 for live scrapes; the strongest live signals are follower/following/posts
-  counts and the username digit ratio.
-- The model is trained on public research datasets; it is a strong baseline, not
-  a ground-truth oracle. Confidence is shown with every verdict.
-
----
-
-## 10. Deploy the web app (free — Streamlit Community Cloud)
-
-This module lives in **`fake-follower-detection/`** inside the team repo
-`hamzaqasim21/trustlens`. To deploy just this app:
-
-1. Go to **https://share.streamlit.io** → sign in with GitHub → **Create app**.
-2. Repo `hamzaqasim21/trustlens`, branch `main`, main file path
-   **`fake-follower-detection/app.py`** → **Deploy**.
-3. In the app's **⋮ → Settings → Secrets**, paste:
-   ```toml
-   APIFY_API_TOKEN = "apify_api_xxxxxxxx"
-   ```
-4. You get a public `https://<name>.streamlit.app` URL.
-
-`artifacts/` (the trained model) **is** committed so the cloud app runs without
-retraining. Your Apify token is **never** committed — it lives only in Streamlit
-Secrets. All file paths are resolved relative to the app file, so the subfolder
-deploy works correctly.
-
+- Results are cached per username in `cache/` to avoid repeat API calls.
+- Below 60% confidence the module reports *Uncertain* rather than a verdict.
+- Small or new accounts often fall in that band: they resemble low-follower fake accounts
+  statistically.
+- Apify almost always returns a profile picture URL, so `profile_pic` carries less weight on
+  live lookups than it does on the training data.
+- The module classifies individual accounts. Scoring a whole follower network with graph
+  metrics is a separate piece of work.

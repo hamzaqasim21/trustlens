@@ -1,15 +1,9 @@
 """
-TrustLens - Fake Follower Detection  |  Command-line demo
+Command-line interface for the fake follower detector.
 
-Classify a REAL Instagram account as Real or Fake, live.
-
-    python check_user.py ali.ahmad.r8            # scrape via Apify + classify
-    python check_user.py ali.ahmad.r8 --no-cache # force a fresh Apify scrape
-    python check_user.py --manual                # type the 7 numbers by hand
-                                                 # (offline fallback, no token)
-
-Requires a trained model first:  python train_and_save.py
-For live scraping set:  $env:APIFY_API_TOKEN = "apify_api_xxx"
+    python check_user.py <username|profile-url>
+    python check_user.py <username> --no-cache
+    python check_user.py --manual
 """
 import argparse
 import sys
@@ -27,7 +21,7 @@ console = Console()
 
 
 def manual_raw() -> dict:
-    """Ask the user for the 7 raw features - offline fallback."""
+    """Prompt for the 7 raw features."""
     console.print("[bold]Manual entry[/bold] (offline mode). Enter each value:")
     def ask(prompt, cast, default=None):
         while True:
@@ -97,7 +91,8 @@ def show_verdict(prob_fake: float) -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="TrustLens fake-follower check")
-    ap.add_argument("username", nargs="?", help="Instagram username (without @)")
+    ap.add_argument("username", nargs="?",
+                    help="Instagram username, @username, or profile URL")
     ap.add_argument("--manual", action="store_true", help="type the 7 numbers by hand (offline)")
     ap.add_argument("--no-cache", action="store_true", help="force a fresh Apify scrape")
     args = ap.parse_args()
