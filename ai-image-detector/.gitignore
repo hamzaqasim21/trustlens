@@ -1,0 +1,20 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+
+.env
+.streamlit/secrets.toml
+
+artifacts/clip_features.npz
+*.zip
+data/
+cache/
+
+# required at runtime, keep tracked even where *.pkl is ignored
+!artifacts/image_probe.pkl
+!artifacts/image_scaler.pkl
+
+.DS_Store
+Thumbs.db

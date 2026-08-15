@@ -1,0 +1,91 @@
+{
+  "module": "TrustLens 6.7 - AI-generated profile image detector",
+  "clip_arch": "ViT-B-32",
+  "clip_pretrained": "openai",
+  "feature_dim": 512,
+  "classifier": "MLP",
+  "min_confidence": 0.6,
+  "training_sources": {
+    "real": [
+      "FFHQ (140k Kaggle)",
+      "IMDB-WIKI (DeepFakeFace)"
+    ],
+    "fake": [
+      "StyleGAN (GAN)",
+      "Stable Diffusion v1.5",
+      "SD inpainting",
+      "InsightFace (face-swap)"
+    ]
+  },
+  "train_size": 48000,
+  "experiment_A_vs_B": [
+    {
+      "test set": "GAN (StyleGAN)",
+      "A acc": 0.9565,
+      "A f1": 0.9565,
+      "A auc": 0.9939,
+      "B acc": 0.9323,
+      "B f1": 0.9322,
+      "B auc": 0.9846
+    },
+    {
+      "test set": "DIFFUSION (SD)",
+      "A acc": 0.5,
+      "A f1": 0.3347,
+      "A auc": 0.6001,
+      "B acc": 0.94,
+      "B f1": 0.94,
+      "B auc": 0.9872
+    },
+    {
+      "test set": "FACE-SWAP",
+      "A acc": 0.501,
+      "A f1": 0.3369,
+      "A auc": 0.523,
+      "B acc": 0.9052,
+      "B f1": 0.9052,
+      "B auc": 0.9668
+    }
+  ],
+  "robustness": [
+    {
+      "size_px": 320,
+      "jpeg_q": 90,
+      "accuracy": 0.9233,
+      "f1_macro": 0.9233
+    },
+    {
+      "size_px": 224,
+      "jpeg_q": 80,
+      "accuracy": 0.9017,
+      "f1_macro": 0.9017
+    },
+    {
+      "size_px": 160,
+      "jpeg_q": 70,
+      "accuracy": 0.8908,
+      "f1_macro": 0.8906
+    },
+    {
+      "size_px": 128,
+      "jpeg_q": 50,
+      "accuracy": 0.8917,
+      "f1_macro": 0.8916
+    },
+    {
+      "size_px": 96,
+      "jpeg_q": 40,
+      "accuracy": 0.695,
+      "f1_macro": 0.667
+    }
+  ],
+  "known_limitations": [
+    "Diffusion fakes are Stable Diffusion; Midjourney/Flux are related but unseen.",
+    "Non-face images return not_applicable.",
+    "Very small faces return uncertain rather than a hard verdict."
+  ],
+  "labels": {
+    "0": "real",
+    "1": "AI-generated"
+  }
+}
