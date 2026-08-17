@@ -131,3 +131,6 @@ def analyze_profile_live(data: dict):
         "credential_analysis": credential_result,
         "trust_score": trust_result
     }
+
+
+    #hdhhhdshj
