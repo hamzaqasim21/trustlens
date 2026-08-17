@@ -280,3 +280,5 @@ with tab_model:
     p1.metric("XGBoost accuracy", f"{meta['test_accuracy']:.1%}")
     p2.metric("XGBoost F1-macro", f"{meta['test_f1_macro']:.3f}")
     p3.metric("Random Forest acc.", f"{meta.get('rf_test_accuracy', 0):.1%}")
+
+#tttttt
