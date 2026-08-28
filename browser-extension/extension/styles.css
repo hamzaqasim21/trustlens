@@ -1,0 +1,250 @@
+/*
+ * Badge styling.
+ *
+ * Everything is namespaced under .tl- and uses high-specificity resets, because
+ * this markup is injected into Instagram's page and inherits its global styles.
+ * Colours are fixed rather than theme-derived: a warning must look like a warning
+ * whichever theme Instagram is in.
+ */
+
+.tl-badge {
+  all: initial;
+  display: block !important;
+  box-sizing: border-box !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif !important;
+  font-size: 13px !important;
+  line-height: 1.45 !important;
+  margin: 8px 0 12px !important;
+  padding: 10px 12px !important;
+  border-radius: 10px !important;
+  border: 1px solid var(--tl-border, #d1d5db) !important;
+  background: var(--tl-bg, #f9fafb) !important;
+  color: #111827 !important;
+  position: relative !important;
+  z-index: 5 !important;
+  max-width: 100% !important;
+  overflow-wrap: break-word !important;
+}
+
+/* Severity palette */
+.tl-badge.tl-danger  { --tl-bg: #fef2f2; --tl-border: #fca5a5; }
+.tl-badge.tl-warning { --tl-bg: #fff7ed; --tl-border: #fdba74; }
+.tl-badge.tl-caution { --tl-bg: #fefce8; --tl-border: #fde047; }
+.tl-badge.tl-clean   { --tl-bg: #f0fdf4; --tl-border: #86efac; }
+.tl-badge.tl-unknown { --tl-bg: #f8fafc; --tl-border: #cbd5e1; }
+.tl-badge.tl-pending { --tl-bg: #f5f3ff; --tl-border: #ddd6fe; }
+.tl-badge.tl-error   { --tl-bg: #fef2f2; --tl-border: #fecaca; }
+
+@media (prefers-color-scheme: dark) {
+  .tl-badge { color: #f3f4f6 !important; }
+  .tl-badge.tl-danger  { --tl-bg: #2a1215; --tl-border: #7f1d1d; }
+  .tl-badge.tl-warning { --tl-bg: #2a1a0d; --tl-border: #7c2d12; }
+  .tl-badge.tl-caution { --tl-bg: #262010; --tl-border: #713f12; }
+  .tl-badge.tl-clean   { --tl-bg: #0f2417; --tl-border: #14532d; }
+  .tl-badge.tl-unknown { --tl-bg: #16181c; --tl-border: #374151; }
+  .tl-badge.tl-pending { --tl-bg: #1a1726; --tl-border: #4c1d95; }
+  .tl-badge.tl-error   { --tl-bg: #2a1215; --tl-border: #7f1d1d; }
+}
+
+.tl-row {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+
+.tl-dot {
+  width: 9px !important; height: 9px !important;
+  border-radius: 50% !important; flex: 0 0 auto !important;
+}
+.tl-danger  .tl-dot { background: #dc2626 !important; }
+.tl-warning .tl-dot { background: #ea580c !important; }
+.tl-caution .tl-dot { background: #ca8a04 !important; }
+.tl-clean   .tl-dot { background: #16a34a !important; }
+.tl-unknown .tl-dot { background: #94a3b8 !important; }
+.tl-pending .tl-dot { background: #7c3aed !important; animation: tl-pulse 1.1s infinite !important; }
+.tl-error   .tl-dot { background: #dc2626 !important; }
+
+@keyframes tl-pulse { 0%,100% { opacity: 1 } 50% { opacity: .25 } }
+
+.tl-title {
+  font-weight: 700 !important;
+  flex: 1 1 auto !important;
+  font-size: 13px !important;
+}
+
+.tl-brand {
+  font-size: 10px !important;
+  letter-spacing: .08em !important;
+  text-transform: uppercase !important;
+  opacity: .55 !important;
+  font-weight: 600 !important;
+}
+
+.tl-reasons {
+  margin: 6px 0 0 17px !important;
+  padding: 0 !important;
+  font-size: 12px !important;
+  opacity: .9 !important;
+}
+.tl-reasons li { margin: 2px 0 !important; }
+
+.tl-actions {
+  display: flex !important;
+  gap: 6px !important;
+  margin-top: 8px !important;
+  flex-wrap: wrap !important;
+}
+
+.tl-btn {
+  all: unset !important;
+  cursor: pointer !important;
+  font-family: inherit !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  padding: 4px 10px !important;
+  border-radius: 999px !important;
+  border: 1px solid currentColor !important;
+  color: #4c1d95 !important;
+  background: rgba(124, 58, 237, .08) !important;
+  transition: background .15s !important;
+}
+.tl-btn:hover { background: rgba(124, 58, 237, .18) !important; }
+.tl-btn[disabled] { opacity: .5 !important; cursor: default !important; }
+
+@media (prefers-color-scheme: dark) {
+  .tl-btn { color: #c4b5fd !important; }
+}
+
+.tl-explain {
+  margin-top: 8px !important;
+  padding: 9px 10px !important;
+  border-radius: 8px !important;
+  background: rgba(124, 58, 237, .07) !important;
+  border-left: 3px solid #7c3aed !important;
+  font-size: 12px !important;
+  white-space: pre-wrap !important;
+}
+
+.tl-source {
+  display: block !important;
+  margin-top: 6px !important;
+  font-size: 10px !important;
+  opacity: .6 !important;
+}
+
+.tl-unchecked {
+  margin-top: 6px !important;
+  font-size: 11px !important;
+  opacity: .7 !important;
+  font-style: italic !important;
+}
+
+.tl-hidden { display: none !important; }
+
+/* ------------------------------------------------------------------ *
+ * Floating badge — used on reel/post detail pages, where Instagram's
+ * viewer is a stack of absolutely positioned layers and an inline badge
+ * ends up on top of the video (and clipped by an overflow:hidden parent).
+ * Pinned to the viewport, it cannot be covered or cut off.
+ * ------------------------------------------------------------------ */
+.tl-badge.tl-floating {
+  position: fixed !important;
+  top: 74px !important;
+  right: 18px !important;
+  width: 330px !important;
+  max-width: calc(100vw - 36px) !important;
+  max-height: calc(100vh - 100px) !important;
+  overflow-y: auto !important;
+  z-index: 2147483000 !important;       /* above Instagram's own layers */
+  box-shadow: 0 6px 24px rgba(0, 0, 0, .22) !important;
+  margin: 0 !important;
+}
+
+/* On a narrow window there is no room beside the video; sit across the top. */
+@media (max-width: 780px) {
+  .tl-badge.tl-floating {
+    top: 8px !important;
+    right: 8px !important;
+    left: 8px !important;
+    width: auto !important;
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * Transcription progress
+ * ------------------------------------------------------------------ */
+.tl-progress { margin-top: 8px !important; }
+
+.tl-progress-text {
+  font-size: 11px !important;
+  opacity: .8 !important;
+  margin-bottom: 5px !important;
+  overflow-wrap: break-word !important;
+}
+
+.tl-progress-track {
+  height: 5px !important;
+  border-radius: 999px !important;
+  background: rgba(124, 58, 237, .18) !important;
+  overflow: hidden !important;
+}
+
+.tl-progress-fill {
+  height: 100% !important;
+  width: 0%;
+  border-radius: 999px !important;
+  background: #7c3aed !important;
+  transition: width .4s ease !important;
+}
+
+/* The primary action — "Listen to audio" — should look like the next step. */
+.tl-btn.tl-btn-primary {
+  background: #7c3aed !important;
+  color: #fff !important;
+  border-color: #7c3aed !important;
+}
+.tl-btn.tl-btn-primary:hover { background: #6d28d9 !important; }
+
+/* ------------------------------------------------------------------ *
+ * The spoken transcript, shown after "Listen to audio" completes.
+ * ------------------------------------------------------------------ */
+.tl-transcript {
+  margin-top: 10px !important;
+  padding: 8px 10px !important;
+  border-radius: 8px !important;
+  background: rgba(124, 58, 237, .07) !important;
+  border: 1px solid rgba(124, 58, 237, .18) !important;
+}
+
+.tl-transcript-head {
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: .04em !important;
+  opacity: .7 !important;
+  margin-bottom: 5px !important;
+}
+
+.tl-transcript-body {
+  font-size: 12.5px !important;
+  line-height: 1.5 !important;
+  max-height: 160px !important;      /* long reels stay contained */
+  overflow-y: auto !important;
+  white-space: pre-wrap !important;
+  overflow-wrap: break-word !important;
+  /* Urdu/Arabic transcripts read right-to-left; let the browser decide per line. */
+  unicode-bidi: plaintext !important;
+}
+
+.tl-transcript-meta {
+  font-size: 10.5px !important;
+  opacity: .6 !important;
+  margin-top: 6px !important;
+}
+
+@media (prefers-color-scheme: dark) {
+  .tl-transcript {
+    background: rgba(139, 92, 246, .12) !important;
+    border-color: rgba(139, 92, 246, .28) !important;
+  }
+}

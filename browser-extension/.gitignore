@@ -1,0 +1,24 @@
+# ---------------------------------------------------------------------------
+# Never commit these.
+# ---------------------------------------------------------------------------
+
+# The Gemini API key lives here. A key pushed to GitHub is a leaked key —
+# GitHub's secret scanning will find it in seconds, and so will everyone else.
+# .env.example is the file that gets committed; it holds no real values.
+.env
+*.env
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# Editors / OS
+.vscode/
+.idea/
+*.swp
+Thumbs.db
+desktop.ini

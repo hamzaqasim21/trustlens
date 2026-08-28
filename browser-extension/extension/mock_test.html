@@ -1,0 +1,143 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>observer single-badge test</title>
+<style>
+  /* Give the fake articles real layout so getBoundingClientRect() is meaningful. */
+  article { display:block; height:300px; margin:0; }
+</style>
+</head>
+<body>
+<div id="out" style="font:14px monospace;white-space:pre-wrap"></div>
+
+<script src="state.js"></script>
+<script src="parser.js"></script>
+<script src="instagram.js"></script>
+<script src="observer.js"></script>
+
+<script>
+const log = (m) => document.getElementById("out").textContent += m + "\n";
+let pass = 0, fail = 0, analyzed = [];
+function assert(cond, msg) {
+  if (cond) { pass++; log("  PASS  " + msg); }
+  else { fail++; log("  FAIL  " + msg); }
+}
+
+// stubs so observer.js runs without Chrome APIs / network / rendering
+TL.ui = {
+  makeBadge() { const b = document.createElement("div"); b.className = "tl-badge tl-pending"; return b; },
+  setPending(b, msg) { b.textContent = msg; },
+  setError(b, msg) { b.textContent = msg; },
+};
+TL.analyzePost = function (data) { analyzed.push(data.key); };
+TL.settings = { enabled: true, autoScan: true, autoTranscribe: false };
+
+// THE invariant that matters: a badge must NEVER live inside Instagram's DOM,
+// because that corrupts React (hydration error #418 crashed the reel page).
+const badgesInsideArticles = () => document.querySelectorAll("article .tl-badge").length;
+const totalBadges = () => document.querySelectorAll(".tl-badge").length;
+const floating = () => document.querySelectorAll(".tl-badge.tl-floating").length;
+
+function buildFeed(n) {
+  const feed = document.createElement("div"); feed.id = "feed";
+  for (let i = 0; i < n; i++) {
+    const a = document.createElement("article");
+    a.dataset.key = "post" + i;
+    a.innerHTML = "<header>user" + i + "</header><video></video><span>caption " + i + "</span>";
+    feed.appendChild(a);
+  }
+  document.body.appendChild(feed);
+  return feed;
+}
+
+// ===================================================================
+log("TEST A — feed: one badge, and NEVER inside an article");
+TL.ig.pageType = () => "feed";
+TL.ig.readPost = (a) => ({
+  key: a ? a.dataset.key : null, caption: "caption", on_screen_text: "",
+  is_reel: false, page_url: "/p/" + (a && a.dataset.key), author: null,
+});
+const feed = buildFeed(3);
+TL.observer.scanNow({ force: true });
+assert(totalBadges() === 1, "exactly one badge on the whole page");
+assert(badgesInsideArticles() === 0, "ZERO badges inside any <article>  <-- React-safety");
+assert(floating() === 1, "the badge is the floating overlay badge");
+const b = document.querySelector(".tl-badge");
+assert(b && b.parentElement === document.documentElement, "badge is attached to <html>, outside Instagram's DOM");
+assert(analyzed.length === 1, "the in-view post was analysed once");
+
+// Scrolling / re-scanning must not spawn more badges or touch articles.
+TL.observer.scanNow({ force: true });
+TL.observer.scanNow({ force: true });
+assert(totalBadges() === 1, "re-scanning keeps exactly one badge (no flood)");
+assert(badgesInsideArticles() === 0, "still zero badges inside articles after re-scans");
+
+// Instagram recycles article nodes — must still never end up inside one.
+const fresh = document.createElement("article");
+fresh.dataset.key = "post1";
+fresh.innerHTML = "<header>u</header><video></video><span>c</span>";
+feed.replaceChild(fresh, feed.children[1]);
+TL.observer.scanNow({ force: true });
+assert(totalBadges() === 1, "after node recycling: still one badge");
+assert(badgesInsideArticles() === 0, "after node recycling: still zero inside articles");
+
+// ===================================================================
+log("\nTEST B — reel page: the same one badge follows the reel");
+document.getElementById("feed").remove();
+TL.ig.pageType = () => "reel";
+TL.ig.readPost = () => ({ key: "REEL1", caption: "", on_screen_text: "", is_reel: true,
+  page_url: "https://www.instagram.com/reel/REEL1/", author: null });
+analyzed = [];
+TL.observer.scanNow({ force: true });
+assert(totalBadges() === 1, "reel page -> exactly one badge");
+assert(document.querySelector(".tl-badge").parentElement === document.documentElement,
+       "reel badge attached to <html>");
+assert(analyzed[0] === "REEL1", "reel was analysed");
+
+// Swipe to the next reel — the one badge re-points, does not stack.
+TL.ig.readPost = () => ({ key: "REEL2", caption: "", on_screen_text: "", is_reel: true,
+  page_url: "https://www.instagram.com/reel/REEL2/", author: null });
+TL.observer.scanNow({ force: true });
+assert(totalBadges() === 1, "swiping -> still exactly one badge");
+assert(analyzed[analyzed.length - 1] === "REEL2", "the new reel was analysed");
+
+// ===================================================================
+log("\nTEST C — page not rendered yet (fresh load of a reel URL)");
+// This is the real-world failure: the content script runs before React has
+// painted the reel, so readPost() finds no key. Previously this returned
+// silently -> blank page, no badge, no explanation.
+TL.ig.pageType = () => "reel";
+TL.ig.readPost = () => ({ key: null, caption: "", on_screen_text: "", is_reel: false });
+TL.settings.enabled = true;
+TL.observer.scanNow({ force: true });
+assert(totalBadges() === 1, "no key yet -> badge still shown (not silent)");
+const waiting = document.querySelector(".tl-badge");
+assert(/Looking for this reel/i.test(waiting.textContent),
+       "badge explains it is waiting: \"" + waiting.textContent.trim().slice(0, 40) + "\"");
+
+// Once React paints, the very next tick must pick it up.
+TL.ig.readPost = () => ({ key: "REEL9", caption: "hi", on_screen_text: "", is_reel: true,
+  page_url: "https://www.instagram.com/reel/REEL9/", author: null });
+analyzed = [];
+TL.observer.scanNow({ force: true });
+assert(analyzed[0] === "REEL9", "once rendered, the reel is analysed");
+assert(totalBadges() === 1, "still exactly one badge");
+
+// ===================================================================
+log("\nTEST D — a thrown error is surfaced, not swallowed");
+TL.ig.readPost = () => { throw new Error("boom"); };
+TL.observer.scanNow({ force: true });
+assert(/boom/.test(document.querySelector(".tl-badge").textContent),
+       "error is shown on the badge instead of failing silently");
+
+// ===================================================================
+log("\nTEST E — disabled: no badge anywhere");
+TL.settings.enabled = false;
+TL.observer.scanNow({ force: true });
+assert(totalBadges() === 0, "disabled -> badge removed");
+
+// ===================================================================
+log("\n" + (fail === 0 ? "ALL " + pass + " ASSERTIONS PASS" : fail + " FAILED, " + pass + " passed"));
+document.title = fail === 0 ? "PASS (" + pass + ")" : "FAIL (" + fail + ")";
+</script>
+</body>
+</html>

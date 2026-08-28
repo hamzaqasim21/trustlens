@@ -1,0 +1,70 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>TrustLens</title>
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    width: 290px; margin: 0; padding: 14px;
+    background: #ffffff; color: #111827;
+  }
+  @media (prefers-color-scheme: dark) {
+    body { background: #16181c; color: #f3f4f6; }
+    .card { background: #1f2126 !important; border-color: #374151 !important; }
+  }
+  h1 { font-size: 15px; margin: 0 0 2px; display: flex; align-items: center; gap: 6px; }
+  .sub { font-size: 11px; opacity: .6; margin-bottom: 12px; }
+  .card {
+    border: 1px solid #e5e7eb; border-radius: 8px;
+    padding: 9px 10px; margin-bottom: 9px; background: #f9fafb;
+  }
+  .mod { display: flex; align-items: center; gap: 7px; padding: 3px 0; font-size: 12px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: #94a3b8; }
+  .up { background: #16a34a; } .down { background: #dc2626; }
+  .name { flex: 1; }
+  .hint { font-size: 11px; opacity: .65; margin-top: 6px; }
+  label { display: flex; align-items: center; gap: 8px; padding: 4px 0; cursor: pointer; }
+  button {
+    width: 100%; padding: 8px; border-radius: 7px; cursor: pointer;
+    border: 1px solid #7c3aed; background: #7c3aed; color: #fff;
+    font-weight: 600; font-size: 12px; font-family: inherit;
+  }
+  button:hover { background: #6d28d9; }
+  button.secondary { background: transparent; color: #7c3aed; margin-top: 6px; }
+  code { font-size: 10.5px; background: rgba(124,58,237,.12); padding: 1px 4px; border-radius: 3px; }
+</style>
+</head>
+<body>
+  <h1>🛡️ TrustLens</h1>
+  <div class="sub">Live Instagram authenticity checks</div>
+
+  <div class="card" id="status">
+    <div class="mod"><span class="dot" id="d-gateway"></span>
+      <span class="name">Gateway</span><span id="s-gateway">checking…</span></div>
+    <div class="mod"><span class="dot" id="d-classifier"></span>
+      <span class="name">Misinformation model</span><span id="s-classifier">—</span></div>
+    <div class="mod"><span class="dot" id="d-account_model"></span>
+      <span class="name">Fake-account model</span><span id="s-account_model">—</span></div>
+    <div class="mod"><span class="dot" id="d-transcriber"></span>
+      <span class="name">Speech transcriber</span><span id="s-transcriber">—</span></div>
+    <div class="mod"><span class="dot" id="d-gemini"></span>
+      <span class="name">Gemini explanations</span><span id="s-gemini">—</span></div>
+    <div class="hint" id="hint"></div>
+  </div>
+
+  <div class="card">
+    <label><input type="checkbox" id="enabled"> Enabled</label>
+    <label><input type="checkbox" id="autoScan"> Check posts as I scroll</label>
+    <div class="hint">Reel audio is never transcribed automatically — each reel
+      badge has a <b>Listen to audio</b> button, because Whisper takes about as
+      long as the reel itself.</div>
+  </div>
+
+  <button id="scan">Check what's on screen now</button>
+  <button id="refresh" class="secondary">Re-check services</button>
+
+  <script src="popup.js"></script>
+</body>
+</html>
