@@ -1,0 +1,11 @@
+# ---- Optional extras. Base pipeline runs fine without these. ----
+# Install only what you need:  pip install -r requirements-optional.txt
+
+# On-screen text OCR fallback (Urdu + English). Pulls PyTorch (~2 GB).
+easyocr==1.7.2
+
+# Devanagari -> Urdu script repair when Whisper emits Hindi script for Urdu speech
+aksharamukha==2.2.1
+
+# PostgreSQL driver (production). SQLite needs nothing.
+psycopg[binary]==3.2.12

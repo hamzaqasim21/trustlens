@@ -1,0 +1,27 @@
+# ---- TrustLens : Video-to-Text Transcriber (Module 12) ----
+# Everything here is free / open-source. No paid API keys anywhere.
+
+# Web service
+fastapi==0.121.2
+uvicorn[standard]==0.38.0
+python-multipart==0.0.20
+pydantic==2.12.3
+pydantic-settings==2.13.0
+aiofiles==24.1.0
+httpx==0.28.1
+
+# Persistence (SQLite in dev, PostgreSQL in prod - same code)
+SQLAlchemy==2.0.44
+
+# ASR - OpenAI Whisper weights on the CTranslate2 runtime (4x faster, int8 capable)
+faster-whisper==1.2.1
+
+# Media acquisition + audio conditioning
+#
+# yt-dlp is deliberately NOT pinned. Instagram and YouTube change their
+# extraction defences constantly, and a pinned yt-dlp silently rots - the
+# symptom is "Requested format is not available", which looks like a bug in
+# this project but is just a stale extractor. If URL downloads start failing,
+# update this first:  pip install -U yt-dlp
+yt-dlp>=2026.8.18
+imageio-ffmpeg==0.6.0
