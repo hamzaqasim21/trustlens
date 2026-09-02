@@ -1,10 +1,11 @@
 """
 prepare_data.py
 ----------------
-Merges CoAID (health misinformation), LIAR (political propaganda), and
-the SMS Spam Collection (financial scam / manipulative-language proxy)
-into a single unified training set for the TrustLens Misinformation
-Classifier.
+Merges CoAID (health misinformation), LIAR (political propaganda),
+UrduFake (Urdu-language misinformation, its own category), FakeNewsNet
+titles (sensational clickbait), and the SMS Spam Collection (financial
+scam / manipulative-language proxy) into a single unified training set
+for the TrustLens Misinformation Classifier.
 
 NOTE on financial_scam: no freely-downloadable dataset of real
 Instagram-style investment-scam captions exists without scraping or a
@@ -12,14 +13,36 @@ login-walled source. SMS Spam Collection is used as a linguistic proxy
 (prize scams, urgency, "call now" manipulation) — document this as a
 known limitation in your report; swap in real scraped captions later.
 
+NOTE on FakeNewsNet: only headline titles are used (not full article
+bodies), since the source articles require live scraping via news_url
+and many of the original 2018-era links are dead. Titles alone are a
+standard and valid basis for sensational-clickbait detection, since
+clickbait is fundamentally a headline phenomenon.
+
+NOTE on UrduFake: given its own "urdu_misinformation" category rather
+than being merged into political_propaganda. Merging it with LIAR's
+short English political statements initially hurt accuracy on that
+category (LIAR is short claims, UrduFake is full news articles in a
+different language) — separating them lets the model learn each
+style/language cleanly. This is how Urdu-language support is added,
+per the project scope.
+
 Output schema (data/unified_dataset.csv):
-    text      -> the raw text to classify (caption/claim/article/message)
-    category  -> "health_misinformation" | "political_propaganda" | "financial_scam"
+    text      -> the raw text to classify (caption/claim/article/message/title)
+    category  -> "health_misinformation" | "political_propaganda" |
+                 "financial_scam" | "sensational_clickbait" |
+                 "urdu_misinformation"
     label     -> 1 = misinformation/scam, 0 = credible/real
     source    -> which raw dataset this row came from (for traceability)
 
 Run from the misinfo_classifier/ directory:
-    python scripts/prepare_data.py --coaid_dir ../CoAID --liar_dir ../LIAR --smsspam_path ../SMSSpam/sms.tsv --out data/unified_dataset.csv
+    python scripts/prepare_data.py \
+        --coaid_dir ../CoAID \
+        --liar_dir ../LIAR \
+        --smsspam_path ../SMSSpam/sms.tsv \
+        --urdufake_dir ../datasets/UrduFake \
+        --fakenewsnet_dir ../datasets/FakeNewsNet \
+        --out data/unified_dataset.csv
 """
 
 import argparse
@@ -92,10 +115,6 @@ def load_coaid(coaid_dir: str) -> pd.DataFrame:
     return df
 
 
-# LIAR's 6-way truthfulness scale collapsed to binary — this is the
-# standard collapse used across LIAR literature (see e.g. Wang 2017
-# follow-up work): the 3 "leans false" grades -> misinformation (1),
-# the 3 "leans true" grades -> credible (0).
 LIAR_LABEL_MAP = {
     "pants-fire": 1,
     "false": 1,
@@ -168,11 +187,96 @@ def load_smsspam(path: str) -> pd.DataFrame:
     return out
 
 
+def load_urdufake(urdufake_dir: str) -> pd.DataFrame:
+    """
+    Loads UrduFake ('Bend the Truth') .txt files from Train/Fake,
+    Train/Real, Test/Fake, Test/Real subfolders. Given its own
+    urdu_misinformation category (see module docstring for why).
+    label=1 for Fake, label=0 for Real.
+    """
+    rows = []
+    splits = ["Train", "Test"]
+    classes = {"Fake": 1, "Real": 0}
+
+    for split in splits:
+        for class_name, label in classes.items():
+            folder = os.path.join(urdufake_dir, split, class_name)
+            if not os.path.isdir(folder):
+                print(f"  [skip] {folder} not found")
+                continue
+            txt_files = glob.glob(os.path.join(folder, "*.txt"))
+            for f in txt_files:
+                try:
+                    with open(f, "r", encoding="utf-8") as fh:
+                        text = clean_text(fh.read())
+                except Exception as e:
+                    print(f"  [skip] {f}: {e}")
+                    continue
+                if len(text) < 10:
+                    continue
+                rows.append({
+                    "text": text,
+                    "category": "urdu_misinformation",
+                    "label": label,
+                    "source": f"UrduFake_{split}",
+                })
+
+    df = pd.DataFrame(rows).drop_duplicates(subset="text")
+    print(f"UrduFake -> {len(df)} rows "
+          f"({(df.label == 1).sum()} fake / {(df.label == 0).sum()} real)")
+    return df
+
+
+def load_fakenewsnet(fakenewsnet_dir: str) -> pd.DataFrame:
+    """
+    Loads FakeNewsNet's gossipcop_fake/real and politifact_fake/real
+    CSVs, using only the 'title' column (headlines) since full article
+    bodies require live scraping via news_url. Mapped into
+    sensational_clickbait, since clickbait is fundamentally a headline
+    phenomenon. label=1 for *_fake files, label=0 for *_real files.
+    """
+    rows = []
+    files = {
+        "gossipcop_fake.csv": 1,
+        "gossipcop_real.csv": 0,
+        "politifact_fake.csv": 1,
+        "politifact_real.csv": 0,
+    }
+
+    for filename, label in files.items():
+        path = os.path.join(fakenewsnet_dir, filename)
+        if not os.path.exists(path):
+            print(f"  [skip] {path} not found")
+            continue
+        try:
+            df = pd.read_csv(path)
+        except Exception as e:
+            print(f"  [skip] {path}: {e}")
+            continue
+        for _, row in df.iterrows():
+            title = clean_text(row.get("title", ""))
+            if len(title) < 10:
+                continue
+            rows.append({
+                "text": title,
+                "category": "sensational_clickbait",
+                "label": label,
+                "source": filename.replace(".csv", ""),
+            })
+
+    df = pd.DataFrame(rows).drop_duplicates(subset="text")
+    print(f"FakeNewsNet -> {len(df)} rows "
+          f"({(df.label == 1).sum()} clickbait / {(df.label == 0).sum()} credible)")
+    return df
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--coaid_dir", default="../CoAID")
     parser.add_argument("--liar_dir", default="../LIAR")
     parser.add_argument("--smsspam_path", default="../SMSSpam/sms.tsv")
+    parser.add_argument("--urdufake_dir", default="../datasets/UrduFake")
+    parser.add_argument("--fakenewsnet_dir", default="../datasets/FakeNewsNet")
     parser.add_argument("--out", default="data/unified_dataset.csv")
     args = parser.parse_args()
 
@@ -185,7 +289,16 @@ def main():
     print("Loading SMS Spam Collection (financial_scam proxy)...")
     scam_df = load_smsspam(args.smsspam_path)
 
-    combined = pd.concat([coaid_df, liar_df, scam_df], ignore_index=True)
+    print("Loading UrduFake (urdu_misinformation)...")
+    urdufake_df = load_urdufake(args.urdufake_dir)
+
+    print("Loading FakeNewsNet titles (sensational_clickbait)...")
+    fakenewsnet_df = load_fakenewsnet(args.fakenewsnet_dir)
+
+    combined = pd.concat(
+        [coaid_df, liar_df, scam_df, urdufake_df, fakenewsnet_df],
+        ignore_index=True
+    )
     combined = combined.sample(frac=1, random_state=42).reset_index(drop=True)
 
     os.makedirs(os.path.dirname(args.out), exist_ok=True)

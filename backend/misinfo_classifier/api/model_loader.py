@@ -1,15 +1,17 @@
 """
 model_loader.py
 ----------------
-Loads the fine-tuned XLM-RoBERTa model (from Colab training) and
-exposes a single classify_text() function returning the API contract
-shape the Trust Score Engine expects.
+Loads the fine-tuned XLM-RoBERTa misinformation classifier and
+exposes classify_text() returning the shape the Trust Score Engine
+expects.
 
 Classes (must match train_model.py):
     0 -> credible
     1 -> health_misinformation
     2 -> political_propaganda
     3 -> financial_scam
+    4 -> sensational_clickbait
+    5 -> urdu_misinformation
 """
 
 import os
@@ -17,8 +19,16 @@ import torch
 import torch.nn.functional as F
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
-MODEL_DIR = os.getenv("MODEL_DIR", "./model")
-LABEL_NAMES = ["credible", "health_misinformation", "political_propaganda", "financial_scam"]
+MODEL_DIR = os.getenv("MISINFO_MODEL_DIR", os.path.join(os.path.dirname(__file__), "model"))
+
+LABEL_NAMES = [
+    "credible",
+    "health_misinformation",
+    "political_propaganda",
+    "financial_scam",
+    "sensational_clickbait",
+    "urdu_misinformation",
+]
 
 _device = "cuda" if torch.cuda.is_available() else "cpu"
 _tokenizer = None
@@ -26,15 +36,12 @@ _model = None
 
 
 def load_model():
-    """Loads tokenizer + model once, on first use (lazy load so the API
-    can start even before you've placed the trained model in ./model)."""
     global _tokenizer, _model
     if _model is None:
         if not os.path.isdir(MODEL_DIR):
             raise RuntimeError(
                 f"Model directory '{MODEL_DIR}' not found. "
-                "Download the trustlens_misinfo_model folder from Colab "
-                "and place it here (or set MODEL_DIR env var)."
+                "Make sure the trained model files are placed in api/model/."
             )
         _tokenizer = AutoTokenizer.from_pretrained(MODEL_DIR)
         _model = AutoModelForSequenceClassification.from_pretrained(MODEL_DIR)
@@ -56,9 +63,8 @@ def classify_text(text: str) -> dict:
         }
 
     tokenizer, model = load_model()
-
     inputs = tokenizer(
-        text, truncation=True, padding=True, max_length=256, return_tensors="pt"
+        text, truncation=True, padding=True, max_length=384, return_tensors="pt"
     ).to(_device)
 
     with torch.no_grad():

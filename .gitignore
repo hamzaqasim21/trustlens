@@ -8,3 +8,9 @@ node_modules/
 .DS_Store
 frontend/node_modules/
 frontend/dist/
+
+backend/misinfo_classifier/CoAID/
+backend/misinfo_classifier/LIAR/
+backend/misinfo_classifier/SMSSpam/
+backend/datasets/
+backend/misinfo_classifier/api/model/model.safetensors

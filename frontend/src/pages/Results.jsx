@@ -107,8 +107,8 @@ function Results() {
 
         <div className="modules-grid">
           <div className="module-card">
-            <div className="module-eyebrow">FAKE FOLLOWER DETECTION</div>
-            <div className="module-score score-green">{100 - result.fake_follower_analysis.bot_percentage}%</div>
+            <div className="module-eyebrow">FOLLOWER AUTHENTICITY</div>
+            <div className="module-score score-green">{100 - result.fake_follower_analysis.bot_percentage}% Genuine</div>
             <div className="module-desc">{result.fake_follower_analysis.verdict}</div>
           </div>
           <div className="module-card">

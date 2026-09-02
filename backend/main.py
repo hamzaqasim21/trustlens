@@ -2,6 +2,11 @@
 # TrustLens — Main FastAPI Backend
 # ============================================================
 
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), "misinfo_classifier", "api"))
+from model_loader import classify_text
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fake_follower import analyze_fake_followers
@@ -114,6 +119,15 @@ def analyze_profile_live(data: dict):
         profile.get("biography", ""), profile["is_verified"]
     )
 
+    # ---- Misinformation Classification (on bio text) ----
+    misinfo_result = {"status": "skipped", "message": "No bio text to classify"}
+    bio_text = profile.get("biography", "")
+    if bio_text and bio_text.strip():
+        try:
+            misinfo_result = classify_text(bio_text)
+        except Exception as e:
+            misinfo_result = {"status": "error", "message": str(e)}
+
     trust_result = calculate_trust_score(
         fake_result["bot_percentage"],
         engagement_result["engagement_score"]
@@ -129,8 +143,12 @@ def analyze_profile_live(data: dict):
         "engagement_analysis": engagement_result,
         "comment_authenticity": comment_authenticity,
         "credential_analysis": credential_result,
+        "misinformation_analysis": misinfo_result,
         "trust_score": trust_result
     }
 
 
-    #hdhhhdshj
+@app.post("/test-misinfo")
+def test_misinfo(data: dict):
+    text = data.get("text", "")
+    return classify_text(text)
