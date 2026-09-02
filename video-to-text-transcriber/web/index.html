@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TrustLens · Video-to-Text Transcriber</title>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#151b23; --panel2:#1c2430; --line:#2a3441;
+    --fg:#e6edf3; --muted:#8b98a5; --dim:#6b7683;
+    --accent:#4f9cf9; --accent-dim:#1f4d80;
+    --good:#3fb950; --fair:#d29922; --poor:#f0883e; --bad:#f85149;
+    --radius:10px;
+    --mono:"JetBrains Mono","Cascadia Code",Consolas,monospace;
+    --urdu:"Noto Nastaliq Urdu","Jameel Noori Nastaleeq","Segoe UI",Tahoma,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    background:var(--bg);color:var(--fg);
+    font-family:"Segoe UI",system-ui,-apple-system,sans-serif;
+    line-height:1.55;padding:24px 16px 64px;
+  }
+  .wrap{max-width:1080px;margin:0 auto}
+
+  header{margin-bottom:22px;border-bottom:1px solid var(--line);padding-bottom:16px}
+  h1{font-size:21px;font-weight:650;letter-spacing:-.2px}
+  h1 .tag{
+    font-size:10px;font-weight:700;letter-spacing:.9px;text-transform:uppercase;
+    background:var(--accent-dim);color:#9dc7ff;padding:3px 8px;border-radius:5px;
+    vertical-align:middle;margin-left:9px;
+  }
+  .sub{color:var(--muted);font-size:13px;margin-top:5px}
+  .health{font-family:var(--mono);font-size:11px;color:var(--dim);margin-top:9px}
+  .health b{color:var(--muted);font-weight:500}
+
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:18px;margin-bottom:16px}
+
+  .tabs{display:flex;gap:6px;margin-bottom:16px}
+  .tab{
+    padding:7px 15px;border-radius:7px;cursor:pointer;font-size:13px;font-weight:550;
+    background:var(--panel2);border:1px solid var(--line);color:var(--muted);
+    transition:.14s;user-select:none;
+  }
+  .tab:hover{color:var(--fg)}
+  .tab.on{background:var(--accent-dim);border-color:var(--accent);color:#cfe4ff}
+
+  label{display:block;font-size:11px;font-weight:600;text-transform:uppercase;
+    letter-spacing:.6px;color:var(--dim);margin-bottom:6px}
+  input[type=text],select{
+    width:100%;background:var(--bg);border:1px solid var(--line);color:var(--fg);
+    padding:10px 12px;border-radius:7px;font-size:14px;font-family:inherit;outline:none;
+  }
+  input[type=text]:focus,select:focus{border-color:var(--accent)}
+  .row{display:flex;gap:12px;flex-wrap:wrap;margin-top:14px}
+  .row>div{flex:1;min-width:140px}
+
+  .drop{
+    border:2px dashed var(--line);border-radius:var(--radius);padding:34px 18px;
+    text-align:center;color:var(--muted);cursor:pointer;transition:.15s;font-size:14px;
+  }
+  .drop:hover,.drop.over{border-color:var(--accent);background:rgba(79,156,249,.05);color:var(--fg)}
+  .drop b{color:var(--accent)}
+  .drop .f{margin-top:9px;font-family:var(--mono);font-size:12px;color:var(--good)}
+
+  button.go{
+    margin-top:16px;width:100%;padding:12px;border:0;border-radius:8px;
+    background:var(--accent);color:#04121f;font-size:14px;font-weight:700;cursor:pointer;
+    transition:.14s;font-family:inherit;
+  }
+  button.go:hover:not(:disabled){background:#6fb0ff}
+  button.go:disabled{opacity:.45;cursor:not-allowed}
+
+  .prog{display:none}
+  .prog.on{display:block}
+  .bar{height:7px;background:var(--panel2);border-radius:4px;overflow:hidden;margin:11px 0 8px}
+  .bar>i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--accent),#7fc4ff);
+    transition:width .3s ease;border-radius:4px}
+  .stage{font-family:var(--mono);font-size:12px;color:var(--muted)}
+
+  .err{background:rgba(248,81,73,.08);border:1px solid rgba(248,81,73,.35);
+    color:#ffb3ae;padding:13px 15px;border-radius:8px;font-size:13px;white-space:pre-wrap}
+
+  .out{display:none}
+  .out.on{display:block}
+
+  .chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+  .chip{background:var(--panel2);border:1px solid var(--line);border-radius:7px;
+    padding:8px 12px;font-size:12px}
+  .chip .k{color:var(--dim);font-size:10px;text-transform:uppercase;letter-spacing:.6px;display:block}
+  .chip .v{font-weight:650;font-family:var(--mono);font-size:13px;margin-top:2px;display:block}
+  .q-good .v{color:var(--good)} .q-fair .v{color:var(--fair)}
+  .q-poor .v{color:var(--poor)} .q-unusable .v{color:var(--bad)}
+
+  .note{border-left:3px solid var(--accent);background:rgba(79,156,249,.06);
+    padding:10px 13px;border-radius:0 7px 7px 0;font-size:12.5px;color:#bcd9ff;margin-bottom:12px}
+  .warn{border-left:3px solid var(--fair);background:rgba(210,153,34,.07);
+    padding:10px 13px;border-radius:0 7px 7px 0;font-size:12.5px;color:#e8cd8a;margin-bottom:8px}
+
+  h3{font-size:12px;text-transform:uppercase;letter-spacing:.8px;color:var(--dim);
+    margin:20px 0 10px;font-weight:650}
+  h3:first-child{margin-top:0}
+
+  .transcript{
+    background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:16px;
+    font-size:15px;white-space:pre-wrap;word-wrap:break-word;max-height:340px;overflow-y:auto;
+  }
+  .transcript.rtl{direction:rtl;text-align:right;font-family:var(--urdu);font-size:19px;line-height:2.1}
+
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  th{text-align:left;color:var(--dim);font-weight:600;font-size:10px;text-transform:uppercase;
+    letter-spacing:.6px;padding:7px 9px;border-bottom:1px solid var(--line)}
+  td{padding:8px 9px;border-bottom:1px solid rgba(42,52,65,.5);vertical-align:top}
+  tr:last-child td{border-bottom:0}
+  td.t{font-family:var(--mono);color:var(--dim);white-space:nowrap;font-size:11px}
+  td.txt.rtl{direction:rtl;text-align:right;font-family:var(--urdu);font-size:16px;line-height:1.9}
+  tr.drop{opacity:.42}
+  tr.drop td.txt{text-decoration:line-through}
+  .reason{color:var(--bad);font-size:10.5px;font-family:var(--mono);display:block;margin-top:3px;
+    text-decoration:none !important}
+  .cf{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11px}
+  .cf i{display:block;height:4px;width:34px;background:var(--panel2);border-radius:2px;overflow:hidden}
+  .cf i>b{display:block;height:100%;border-radius:2px}
+
+  .scroll{max-height:330px;overflow-y:auto;border:1px solid var(--line);border-radius:8px}
+  details{margin-top:14px}
+  summary{cursor:pointer;color:var(--muted);font-size:12px;padding:7px 0;user-select:none}
+  summary:hover{color:var(--fg)}
+  pre{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:13px;
+    overflow:auto;font-family:var(--mono);font-size:11px;color:var(--muted);max-height:400px;margin-top:9px}
+
+  .acts{display:flex;gap:9px;margin-top:15px;flex-wrap:wrap}
+  .acts button{background:var(--panel2);border:1px solid var(--line);color:var(--muted);
+    padding:8px 14px;border-radius:7px;font-size:12px;cursor:pointer;font-family:inherit;transition:.14s}
+  .acts button:hover{color:var(--fg);border-color:var(--accent)}
+  ::-webkit-scrollbar{width:9px;height:9px}
+  ::-webkit-scrollbar-track{background:var(--bg)}
+  ::-webkit-scrollbar-thumb{background:var(--line);border-radius:5px}
+  ::-webkit-scrollbar-thumb:hover{background:var(--dim)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>TrustLens <span class="tag">Module 12 · Video-to-Text</span></h1>
+    <div class="sub">Instagram Reel audio &rarr; Urdu / English text, scored for confidence, ready for the Misinformation Classifier.</div>
+    <div class="health" id="health">checking service…</div>
+  </header>
+
+  <div class="card">
+    <div class="tabs">
+      <div class="tab on" data-tab="url">Paste a link</div>
+      <div class="tab" data-tab="file">Upload a file</div>
+    </div>
+
+    <div id="p-url">
+      <label for="url">Instagram reel or post link</label>
+      <input type="text" id="url" placeholder="https://www.instagram.com/reel/…" autocomplete="off">
+    </div>
+
+    <div id="p-file" style="display:none">
+      <label>Video or audio file</label>
+      <div class="drop" id="drop">
+        <div><b>Click to choose</b> or drag a file here</div>
+        <div style="font-size:12px;margin-top:5px;color:var(--dim)">mp4 · mov · mkv · webm · mp3 · wav · m4a · ogg</div>
+        <div class="f" id="fname"></div>
+      </div>
+      <input type="file" id="file" style="display:none"
+             accept="video/*,audio/*,.mp4,.mov,.mkv,.webm,.avi,.m4v,.mp3,.wav,.m4a,.aac,.ogg,.opus,.flac">
+    </div>
+
+    <div class="row">
+      <div>
+        <label for="lang">Language</label>
+        <select id="lang">
+          <option value="">Auto-detect (Urdu-biased)</option>
+          <option value="ur">Force Urdu</option>
+          <option value="en">Force English</option>
+          <option value="hi">Force Hindi</option>
+          <option value="pa">Force Punjabi</option>
+        </select>
+      </div>
+      <div>
+        <label for="task">Output</label>
+        <select id="task">
+          <option value="transcribe">Original language</option>
+          <option value="translate">Translate to English</option>
+        </select>
+      </div>
+      <div>
+        <label for="denoise">Audio cleanup</label>
+        <select id="denoise">
+          <option value="light">Light (default)</option>
+          <option value="none">None</option>
+          <option value="aggressive">Aggressive (loud music)</option>
+        </select>
+      </div>
+    </div>
+
+    <button class="go" id="go">Transcribe</button>
+
+    <div class="prog" id="prog">
+      <div class="bar"><i id="fill"></i></div>
+      <div class="stage" id="stage">starting…</div>
+    </div>
+  </div>
+
+  <div id="error" style="display:none" class="card"><div class="err" id="errtext"></div></div>
+
+  <div class="card out" id="out">
+    <div class="chips" id="chips"></div>
+    <div id="notes"></div>
+
+    <h3>Transcript</h3>
+    <div class="transcript" id="text"></div>
+
+    <h3>Segments <span style="text-transform:none;letter-spacing:0;color:var(--dim)" id="segnote"></span></h3>
+    <div class="scroll">
+      <table>
+        <thead><tr><th style="width:96px">Time</th><th>Text</th><th style="width:96px">Confidence</th></tr></thead>
+        <tbody id="segs"></tbody>
+      </table>
+    </div>
+
+    <div id="ocrbox"></div>
+
+    <details>
+      <summary>Full JSON response (what the Misinformation Classifier receives)</summary>
+      <pre id="json"></pre>
+    </details>
+
+    <div class="acts">
+      <button id="copy">Copy transcript</button>
+      <button id="dljson">Download JSON</button>
+      <button id="dltxt">Download .txt</button>
+      <button id="dlsrt">Download .srt</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const API = location.origin + "/api/v1";
+const $ = id => document.getElementById(id);
+let mode = "url", picked = null, result = null, es = null;
+
+/* ---------- tabs ---------- */
+document.querySelectorAll(".tab").forEach(t => t.onclick = () => {
+  document.querySelectorAll(".tab").forEach(x => x.classList.remove("on"));
+  t.classList.add("on");
+  mode = t.dataset.tab;
+  $("p-url").style.display  = mode === "url"  ? "" : "none";
+  $("p-file").style.display = mode === "file" ? "" : "none";
+});
+
+/* ---------- file picking ---------- */
+$("drop").onclick = () => $("file").click();
+$("file").onchange = e => { if (e.target.files[0]) setFile(e.target.files[0]); };
+["dragover","dragenter"].forEach(ev => $("drop").addEventListener(ev, e => {
+  e.preventDefault(); $("drop").classList.add("over");
+}));
+["dragleave","drop"].forEach(ev => $("drop").addEventListener(ev, e => {
+  e.preventDefault(); $("drop").classList.remove("over");
+}));
+$("drop").addEventListener("drop", e => {
+  if (e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]);
+});
+function setFile(f){
+  picked = f;
+  $("fname").textContent = f.name + "  (" + (f.size/1048576).toFixed(1) + " MB)";
+}
+
+/* ---------- health ---------- */
+fetch(API + "/health").then(r => r.json()).then(h => {
+  const a = h.asr, ocr = h.ocr;
+  $("health").innerHTML =
+    `<b>model</b> ${a.model} · <b>device</b> ${a.device}/${a.compute_type} · ` +
+    `<b>vad</b> ${a.vad_enabled ? "on" : "off"} · <b>urdu-bias</b> ${a.urdu_bias ? "on" : "off"} · ` +
+    `<b>ocr</b> ${ocr.enabled ? (ocr.installed ? "on" : "enabled but not installed") : "off"} · ` +
+    `<b>ffmpeg</b> ${h.ffmpeg.available ? "ok" : "MISSING"} · <b>status</b> ${h.status}`;
+}).catch(() => $("health").textContent = "service unreachable — is the server running?");
+
+/* ---------- submit ---------- */
+$("go").onclick = async () => {
+  const lang = $("lang").value, task = $("task").value, denoise = $("denoise").value;
+  hide();
+  $("go").disabled = true;
+  $("prog").classList.add("on");
+  setProg(0.02, "submitting…");
+
+  try {
+    let r;
+    if (mode === "url") {
+      const url = $("url").value.trim();
+      if (!url) throw new Error("Paste a link first.");
+      r = await fetch(API + "/transcribe/url", {
+        method: "POST", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({url, language: lang || null, task, denoise})
+      });
+    } else {
+      if (!picked) throw new Error("Choose a file first.");
+      const fd = new FormData();
+      fd.append("file", picked);
+      if (lang) fd.append("language", lang);
+      fd.append("task", task);
+      fd.append("denoise", denoise);
+      r = await fetch(API + "/transcribe/upload", {method: "POST", body: fd});
+    }
+
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.detail || ("HTTP " + r.status));
+
+    if (j.status === "completed" && j.result) { done(j); return; }
+    watch(j.job_id);
+  } catch (e) {
+    fail(e.message);
+  }
+};
+
+/* ---------- live progress ---------- */
+function watch(jobId){
+  if (es) es.close();
+  es = new EventSource(API + "/jobs/" + jobId + "/stream");
+  es.onmessage = ev => {
+    let d; try { d = JSON.parse(ev.data); } catch { return; }
+    if (d.progress != null) setProg(d.progress, d.stage || d.status);
+    if (d.status === "completed" && d.result) { es.close(); done(d); }
+    else if (d.status === "failed") { es.close(); fail(d.error || "Transcription failed."); }
+  };
+  es.addEventListener("end", () => es && es.close());
+  es.onerror = () => { es.close(); poll(jobId); };   // fall back if SSE is blocked
+}
+async function poll(jobId){
+  try{
+    const r = await fetch(API + "/jobs/" + jobId);
+    const d = await r.json();
+    setProg(d.progress || 0, d.stage || d.status);
+    if (d.status === "completed") return done(d);
+    if (d.status === "failed")    return fail(d.error || "Transcription failed.");
+    setTimeout(() => poll(jobId), 1200);
+  } catch(e){ fail(e.message); }
+}
+function setProg(p, s){ $("fill").style.width = (p*100).toFixed(1)+"%"; $("stage").textContent = s || ""; }
+
+/* ---------- render ---------- */
+function done(job){
+  result = job.result;
+  $("go").disabled = false;
+  $("prog").classList.remove("on");
+
+  const R = result, L = R.language, T = R.transcript, C = R.classifier_input, E = R.engine;
+  const rtl = ["ur","ar","fa","ps","sd"].includes(L.language);
+
+  const secs = (R.timings && R.timings.total) || job.processing_seconds || 0;
+  $("chips").innerHTML = [
+    chip("Language", (L.language_name||"?") + (L.corrected ? " ✓fixed" : "")),
+    chip("Quality", T.quality, "q-" + T.quality),
+    chip("Confidence", Math.round((C.confidence||0)*100) + "%"),
+    chip("Segments", T.kept_segments + " kept / " + T.dropped_segments + " filtered"),
+    chip("Media", (R.media.duration_seconds||0).toFixed(1) + "s"),
+    chip("Processed in", secs.toFixed(1) + "s"),
+    chip("Speed", (E.realtime_factor||0) + "× realtime"),
+    chip("Model", (E.model||"?") + " · " + (E.device||"?") + "/" + (E.compute_type||"?")),
+    job.cache_hit ? chip("Cache","hit") : ""
+  ].join("");
+
+  let notes = "";
+  if (L.corrected)   notes += `<div class="note"><b>Language corrected.</b> ${esc(L.reason)}</div>`;
+  if (L.script_repair && L.script_repair.applied)
+    notes += `<div class="note"><b>Script repaired.</b> ${esc(L.script_repair.note||"")} (via ${esc(L.script_repair.method)})</div>`;
+  (R.warnings||[]).forEach(w => notes += `<div class="warn">${esc(w)}</div>`);
+  $("notes").innerHTML = notes;
+
+  const tEl = $("text");
+  tEl.className = "transcript" + (rtl ? " rtl" : "");
+  tEl.textContent = T.text || "(no speech recovered)";
+
+  const segs = T.segments || [];
+  $("segnote").textContent = segs.length
+    ? `— struck-through rows were filtered as hallucination or silence`
+    : "";
+  $("segs").innerHTML = segs.map(s => `
+    <tr class="${s.dropped ? "drop" : ""}">
+      <td class="t">${fmt(s.start)}<br>${fmt(s.end)}</td>
+      <td class="txt ${rtl ? "rtl" : ""}">${esc(s.text) || "<i style='color:var(--dim)'>(empty)</i>"}
+        ${s.dropped ? `<span class="reason">filtered: ${esc(s.drop_reason)}</span>` : ""}
+        ${s.code_switched && !s.dropped ? `<span class="reason" style="color:var(--fair)">code-switched</span>` : ""}
+      </td>
+      <td>${confBar(s.confidence)}</td>
+    </tr>`).join("");
+
+  $("ocrbox").innerHTML = (R.ocr && R.ocr.text)
+    ? `<h3>On-screen text (OCR fallback)</h3>
+       <div class="transcript ${rtl ? "rtl" : ""}" style="max-height:190px">${esc(R.ocr.text)}</div>
+       <div style="font-size:11px;color:var(--dim);margin-top:7px;font-family:var(--mono)">
+         ${R.ocr.frames_scanned} frames · ${R.ocr.line_count} lines · confidence ${Math.round(R.ocr.confidence*100)}%</div>`
+    : "";
+
+  $("json").textContent = JSON.stringify(R, null, 2);
+  $("out").classList.add("on");
+  $("out").scrollIntoView({behavior:"smooth", block:"nearest"});
+}
+
+function chip(k,v,cls=""){ return `<div class="chip ${cls}"><span class="k">${k}</span><span class="v">${esc(String(v))}</span></div>`; }
+function confBar(c){
+  c = c || 0;
+  const col = c >= .7 ? "var(--good)" : c >= .5 ? "var(--fair)" : c >= .3 ? "var(--poor)" : "var(--bad)";
+  return `<span class="cf"><i><b style="width:${(c*100).toFixed(0)}%;background:${col}"></b></i>${(c*100).toFixed(0)}%</span>`;
+}
+function fmt(s){ s = s||0; const m = Math.floor(s/60), r = (s%60); return `${m}:${r.toFixed(1).padStart(4,"0")}`; }
+function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function hide(){ $("out").classList.remove("on"); $("error").style.display = "none"; }
+function fail(m){
+  $("go").disabled = false;
+  $("prog").classList.remove("on");
+  $("errtext").textContent = m;
+  $("error").style.display = "";
+}
+
+/* ---------- exports ---------- */
+$("copy").onclick = () => navigator.clipboard.writeText(result?.transcript?.text || "")
+  .then(() => { $("copy").textContent = "Copied ✓"; setTimeout(() => $("copy").textContent = "Copy transcript", 1400); });
+$("dljson").onclick = () => dl("transcript.json", JSON.stringify(result, null, 2), "application/json");
+$("dltxt").onclick  = () => dl("transcript.txt", result?.transcript?.text || "", "text/plain");
+$("dlsrt").onclick  = () => {
+  const segs = (result?.transcript?.segments || []).filter(s => !s.dropped);
+  const srt = segs.map((s,i) => `${i+1}\n${ts(s.start)} --> ${ts(s.end)}\n${s.text}\n`).join("\n");
+  dl("transcript.srt", srt, "text/plain");
+};
+function ts(s){
+  s = s||0;
+  const h = String(Math.floor(s/3600)).padStart(2,"0"),
+        m = String(Math.floor(s%3600/60)).padStart(2,"0"),
+        x = (s%60).toFixed(3).padStart(6,"0").replace(".",",");
+  return `${h}:${m}:${x}`;
+}
+function dl(name, content, type){
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([content], {type}));
+  a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+$("url").addEventListener("keydown", e => { if (e.key === "Enter") $("go").click(); });
+</script>
+</body>
+</html>

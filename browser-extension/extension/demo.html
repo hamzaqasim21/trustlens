@@ -1,0 +1,159 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>TrustLens — badge demo</title>
+<style>
+  body { font: 14px/1.6 -apple-system, "Segoe UI", system-ui, sans-serif;
+         max-width: 620px; margin: 0 auto; padding: 26px 20px 60px;
+         background: #fafafa; color: #111; }
+  @media (prefers-color-scheme: dark) { body { background:#0f1115; color:#e5e7eb } }
+  h1 { font-size: 19px; margin: 0 0 4px }
+  .sub { opacity: .65; font-size: 12.5px; margin-bottom: 18px }
+  .post { border: 1px solid #e5e7eb; border-radius: 12px; padding: 14px;
+          margin-bottom: 16px; background: #fff }
+  @media (prefers-color-scheme: dark) { .post { background:#1a1c22; border-color:#2d323b } }
+  .who { font-weight: 700; font-size: 13px; margin-bottom: 6px }
+  .cap { font-size: 13px; white-space: pre-wrap; opacity: .92 }
+  .tag { display:inline-block; font-size:10px; text-transform:uppercase;
+         letter-spacing:.06em; opacity:.55; margin-left:6px }
+  #status { padding: 9px 12px; border-radius: 8px; font-size: 12.5px;
+            margin-bottom: 16px; background:#eef2ff; border:1px solid #c7d2fe }
+  button.run { padding:9px 16px; border-radius:8px; border:1px solid #7c3aed;
+        background:#7c3aed; color:#fff; font-weight:600; cursor:pointer; font-size:13px }
+</style>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<h1>🛡️ TrustLens badge demo</h1>
+<div class="sub">Runs the real gateway on real posts — the same code path the
+  extension uses on Instagram. No Instagram or Chrome install needed.</div>
+
+<div id="status">Checking gateway…</div>
+<button class="run" id="run">Analyse all posts</button>
+
+<div id="posts"></div>
+
+<script src="state.js"></script>
+<script src="parser.js"></script>
+<script src="api.js"></script>
+<script>
+/* A stand-in for content.js's renderer: same markup, same textContent-only
+   rule, minus the chrome.* APIs that only exist inside an extension. */
+const SAMPLES = [
+  { who: "travel.pk", tag: "legitimate",
+    cap: "Sunset at Hunza valley yesterday. Genuinely one of the most beautiful places I have ever been. Swipe for more photos!",
+    acct: {username:"travel.pk", profile_pic:1, description_length:70, private:0,
+           posts_count:210, followers_count:9000, follows_count:400} },
+  { who: "winter.store", tag: "legitimate",
+    cap: "New winter collection is now live on our website. Free delivery across Pakistan this week.",
+    acct: {username:"winter.store", profile_pic:1, description_length:55, private:0,
+           posts_count:88, followers_count:3400, follows_count:250} },
+  { who: "crypto_king92847", tag: "scam",
+    cap: "GUARANTEED PROFIT! Invest 10,000 PKR and get 300% returns in just 7 days. 100% risk free, limited slots left! DM me now on WhatsApp 0300-1234567 before it's too late!",
+    acct: {username:"crypto_king92847", profile_pic:0, description_length:0, private:0,
+           posts_count:0, followers_count:12, follows_count:4500} },
+  { who: "health.secrets", tag: "health misinformation",
+    cap: "This one root CURES diabetes in 3 weeks! Doctors don't want you to know this. Big pharma is hiding the truth. DM me for the secret detox recipe.",
+    acct: {username:"health.secrets", profile_pic:1, description_length:40, private:0,
+           posts_count:60, followers_count:15000, follows_count:1200} },
+];
+
+const LEVEL_LABEL = { danger:"High risk", warning:"Warning", caution:"Caution",
+                      clean:"Looks OK", unknown:"Not checked" };
+
+function el(tag, cls, txt){ const n=document.createElement(tag);
+  if(cls) n.className=cls; if(txt!=null) n.textContent=txt; return n; }
+
+function makeBadge(){
+  const b = el("div","tl-badge tl-pending");
+  const row = el("div","tl-row");
+  row.appendChild(el("span","tl-dot"));
+  row.appendChild(el("span","tl-title","TrustLens is checking this post…"));
+  row.appendChild(el("span","tl-brand","TrustLens"));
+  b.appendChild(row);
+  return b;
+}
+function clearBelow(b){ const r=b.querySelector(".tl-row");
+  while(b.lastChild && b.lastChild!==r) b.removeChild(b.lastChild); }
+
+function render(badge, v){
+  badge.className = `tl-badge tl-${v.level}`;
+  clearBelow(badge);
+  badge.querySelector(".tl-title").textContent =
+    `${LEVEL_LABEL[v.level]||"Checked"} — ${v.headline||""}`.replace(/\s*—\s*$/,"");
+  if (v.reasons && v.reasons.length){
+    const ul = el("ul","tl-reasons");
+    v.reasons.slice(0,5).forEach(r=>ul.appendChild(el("li",null,r)));
+    badge.appendChild(ul);
+  }
+  if (v.not_checked && v.not_checked.length)
+    badge.appendChild(el("div","tl-unchecked","Not checked: "+v.not_checked.join(" · ")));
+  if (v.notes && v.notes.length)
+    badge.appendChild(el("div","tl-unchecked", v.notes[0]));
+
+  const actions = el("div","tl-actions");
+  const why = el("button","tl-btn","Why?");
+  why.addEventListener("click", async ()=>{
+    const open = badge.querySelector(".tl-explain");
+    if (open){ open.remove(); why.textContent="Why?"; return; }
+    why.disabled=true; why.textContent="Thinking…";
+    try{
+      const res = await TL.api.explain(v);
+      const box = el("div","tl-explain",res.text);
+      box.appendChild(el("span","tl-source", res.source==="gemini"
+        ? "Explained by Gemini, from the evidence above."
+        : "Explained from the detected patterns (no Gemini key configured)."));
+      badge.appendChild(box); why.textContent="Hide";
+    }catch(e){ badge.appendChild(el("div","tl-explain","Couldn't explain: "+e.message)); why.textContent="Why?"; }
+    finally { why.disabled=false; }
+  });
+  actions.appendChild(why);
+  badge.appendChild(actions);
+}
+
+const postsEl = document.getElementById("posts");
+const built = SAMPLES.map(s=>{
+  const card = el("div","post");
+  const who = el("div","who", s.who);
+  who.appendChild(el("span","tag", s.tag));
+  card.appendChild(who);
+  const badge = makeBadge();
+  card.appendChild(badge);
+  card.appendChild(el("div","cap", s.cap));
+  postsEl.appendChild(card);
+  return { s, badge };
+});
+
+async function checkHealth(){
+  const st = document.getElementById("status");
+  try{
+    const h = await TL.api.health();
+    const down = Object.entries(h.modules||{}).filter(([,m])=>!m.up).map(([k])=>k);
+    st.textContent = down.length
+      ? `Gateway up. Down: ${down.join(", ")} — those checks are skipped.`
+      : `All services up.${h.gemini_configured?" Gemini ready.":" No Gemini key — explanations use built-in wording."}`;
+  }catch(e){ st.textContent = "Gateway not reachable on "+TL.GATEWAY+" — start it first."; }
+}
+
+document.getElementById("run").addEventListener("click", async ()=>{
+  for (const {s,badge} of built){
+    badge.className="tl-badge tl-pending"; clearBelow(badge);
+    badge.querySelector(".tl-title").textContent="TrustLens is checking this post…";
+    try{
+      const v = await TL.api.analyze({ page_url:"https://www.instagram.com/p/DEMO/",
+        caption:s.cap, on_screen_text:"", is_reel:false, account:s.acct });
+      render(badge, v);
+    }catch(e){
+      badge.className="tl-badge tl-error"; clearBelow(badge);
+      badge.querySelector(".tl-title").textContent="Couldn't check: "+e.message;
+    }
+  }
+  window.__DEMO_DONE__ = true;
+});
+
+checkHealth();
+</script>
+</body>
+</html>

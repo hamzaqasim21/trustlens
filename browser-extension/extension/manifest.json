@@ -1,0 +1,42 @@
+{
+  "manifest_version": 3,
+  "name": "TrustLens — Instagram Authenticity Checker",
+  "version": "1.0.0",
+  "description": "Live scam, misinformation and bot-account warnings on Instagram posts and reels as you scroll.",
+
+  "permissions": ["storage", "activeTab"],
+
+  "host_permissions": [
+    "https://www.instagram.com/*",
+    "http://127.0.0.1:8100/*"
+  ],
+
+  "background": {
+    "service_worker": "background.js"
+  },
+
+  "content_scripts": [
+    {
+      "matches": ["https://www.instagram.com/*"],
+      "js": ["state.js", "parser.js", "instagram.js", "api.js", "observer.js", "content.js"],
+      "css": ["styles.css"],
+      "run_at": "document_idle"
+    }
+  ],
+
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "TrustLens",
+    "default_icon": {
+      "16": "icon16.png",
+      "48": "icon48.png",
+      "128": "icon128.png"
+    }
+  },
+
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  }
+}

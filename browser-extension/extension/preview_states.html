@@ -1,0 +1,113 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>TrustLens — badge states</title>
+<link rel="stylesheet" href="styles.css">
+<style>
+  body { font: 14px/1.6 -apple-system,"Segoe UI",system-ui,sans-serif;
+         max-width: 560px; margin: 0 auto; padding: 24px 20px 80px; background:#fafafa; color:#111 }
+  @media (prefers-color-scheme: dark){ body{background:#0f1115;color:#e5e7eb} }
+  h2 { font-size: 12px; text-transform: uppercase; letter-spacing:.07em;
+       opacity:.55; margin: 22px 0 6px }
+  .fakevideo { height: 150px; border-radius: 10px; margin-top: 8px;
+    background: linear-gradient(135deg,#4c1d95,#7c3aed); color:#fff;
+    display:flex; align-items:center; justify-content:center; font-weight:700 }
+</style>
+</head>
+<body>
+<h1 style="font-size:18px">Badge states</h1>
+<div style="opacity:.6;font-size:12.5px">Every visual state, so the CSS can be checked without waiting on Instagram.</div>
+
+<h2>1. Reel — audio not checked yet (the bug you found)</h2>
+<div id="s1"></div>
+<div class="fakevideo">reel video sits here</div>
+
+<h2>2. Transcribing — live progress</h2>
+<div id="s2"></div>
+
+<h2>3. Danger — scam found</h2>
+<div id="s3"></div>
+
+<h2>4. Clean — fully checked</h2>
+<div id="s4"></div>
+
+<h2>5. Error — service down</h2>
+<div id="s5"></div>
+
+<h2>6. Reel — after "Listen to audio" (shows the transcript)</h2>
+<div id="s6"></div>
+
+<script src="state.js"></script>
+<script>
+function el(t,c,x){const n=document.createElement(t);if(c)n.className=c;if(x!=null)n.textContent=x;return n;}
+function badge(){const b=el("div","tl-badge tl-pending");const r=el("div","tl-row");
+  r.appendChild(el("span","tl-dot"));r.appendChild(el("span","tl-title",""));
+  r.appendChild(el("span","tl-brand","TrustLens"));b.appendChild(r);return b;}
+function title(b,t){b.querySelector(".tl-title").textContent=t;}
+function reasons(b,list){const ul=el("ul","tl-reasons");list.forEach(x=>ul.appendChild(el("li",null,x)));b.appendChild(ul);}
+function actions(b,btns){const a=el("div","tl-actions");
+  btns.forEach(([label,cls])=>a.appendChild(el("button","tl-btn"+(cls?" "+cls:""),label)));
+  b.appendChild(a);}
+function progress(b,pct,stage,el_s){
+  const w=el("div","tl-progress");
+  w.appendChild(el("div","tl-progress-text",`${stage} — ${pct}%  ·  ${el_s} elapsed`));
+  const tr=el("div","tl-progress-track");const f=el("div","tl-progress-fill");
+  f.style.width=pct+"%";tr.appendChild(f);w.appendChild(tr);b.appendChild(w);}
+
+// 1 — the state from the screenshot, now honest
+let b=badge(); b.className="tl-badge tl-unknown";
+title(b,"Not fully checked — Spoken audio not checked yet");
+reasons(b,["Only the caption and on-screen text were read — nobody has listened to what is said in this video."]);
+b.appendChild(el("div","tl-unchecked","Not checked: Account: no profile data was visible on this page · Spoken audio: not transcribed"));
+actions(b,[["Why?",""],["▶ Listen to audio","tl-btn-primary"]]);
+document.getElementById("s1").appendChild(b);
+
+// 2 — live progress
+b=badge(); b.className="tl-badge tl-pending"; title(b,"Listening to the video…");
+progress(b,52,"Transcribing 26s / 56s","1m 12s");
+document.getElementById("s2").appendChild(b);
+
+// 3 — danger
+b=badge(); b.className="tl-badge tl-danger"; title(b,"High risk — Likely financial scam");
+reasons(b,["Financial promises","Mathematically impossible claim","Artificial urgency","Phone number in text"]);
+actions(b,[["Why?",""]]);
+const ex=el("div","tl-explain","This post promises a \"GUARANTEED PROFIT\" and \"300% returns\" in a short time, which is not realistic for genuine investments. You should be very careful, as this is likely a financial scam.");
+ex.appendChild(el("span","tl-source","Explained by Gemini, from the evidence above."));
+b.appendChild(ex);
+document.getElementById("s3").appendChild(b);
+
+// 4 — clean
+b=badge(); b.className="tl-badge tl-clean"; title(b,"Looks OK — Nothing suspicious found");
+reasons(b,["No scam patterns or manipulative language found in the text."]);
+actions(b,[["Why?",""]]);
+document.getElementById("s4").appendChild(b);
+
+// 5 — error
+b=badge(); b.className="tl-badge tl-error"; title(b,"TrustLens couldn't check this");
+b.appendChild(el("div","tl-unchecked","Can't reach TrustLens. Start the gateway: uvicorn main:app --port 8100"));
+document.getElementById("s5").appendChild(b);
+
+// 6 — reel after transcription: the new "What the video said" box (Fix 3)
+function transcript(b, text, lang, conf, reliable){
+  const box=el("div","tl-transcript");
+  box.appendChild(el("div","tl-transcript-head","What the video said"));
+  box.appendChild(el("div","tl-transcript-body",text));
+  const bits=[];
+  if(lang) bits.push("Language: "+lang.toUpperCase());
+  if(conf!=null) bits.push("Confidence: "+Math.round(conf*100)+"%");
+  if(reliable===false) bits.push("low confidence — read as rough");
+  box.appendChild(el("div","tl-transcript-meta",bits.join(" · ")));
+  b.appendChild(box);
+}
+b=badge(); b.className="tl-badge tl-clean"; title(b,"Looks OK — Nothing suspicious found");
+reasons(b,["No scam patterns or manipulative language found in the spoken audio."]);
+actions(b,[["Why?",""]]);
+// real Urdu transcript from the PakWheels reel, large-v3/GPU
+transcript(b,
+  "میرا پہلا سوال آپ سے ہے، آپ نے روڈ کرنے کیسے گاڑی پر سیکھی؟ سٹی پر۔ روڈ کرنے کے وقت گانا زور سے یا ایسی زور سے؟",
+  "ur", 0.66, true);
+document.getElementById("s6").appendChild(b);
+</script>
+</body>
+</html>

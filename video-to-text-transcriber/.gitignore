@@ -1,0 +1,33 @@
+# --- secrets: never commit ---
+.env
+.env.*
+!.env.example
+cookies.txt
+*cookies*.txt
+*.unsafe-backup-*.txt
+
+# --- python ---
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# --- runtime data: models are huge, media is transient ---
+data/media/
+data/models/
+data/*.db
+data/*.sqlite3
+
+# --- build artefacts ---
+colab_bundle.zip
+
+# --- editors / os ---
+.vscode/
+.idea/
+Thumbs.db
+Desktop.ini
+.DS_Store
