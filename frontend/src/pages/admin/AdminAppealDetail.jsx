@@ -155,13 +155,13 @@ function DecisionForm({ appeal, onDecided }) {
 
       <ConfirmDialog
         open={confirming}
-        title={decision === 'upheld' ? `Uphold and set the score to ${scoreNum}?` : 'Reject this dispute?'}
+        title={decision === 'upheld' ? `Uphold and set the score to ${scoreNum}?` : 'Reject this report?'}
         body={
           decision === 'upheld'
             ? <p>The user's scan will show {scoreNum} ({previewVerdict(scoreNum)}) instead of {appeal.scan.trust_score}. The original score is kept on record. This can't be undone from the panel.</p>
             : <p>The original score of {appeal.scan.trust_score} stands and the user sees your explanation. This can't be undone from the panel.</p>
         }
-        confirmLabel={decision === 'upheld' ? 'Uphold dispute' : 'Reject dispute'}
+        confirmLabel={decision === 'upheld' ? 'Uphold report' : 'Reject report'}
         onConfirm={submit}
         onCancel={() => setConfirming(false)}
       />
@@ -177,7 +177,7 @@ function AdminAppealDetail() {
   if (!appeal) {
     return (
       <div>
-        <Link to="/admin/appeals" className="adm-back">← All disputes</Link>
+        <Link to="/admin/appeals" className="adm-back">← All reports</Link>
         <ErrorBanner message={error} onRetry={reload} />
         {loading && <p className="adm-muted">Loading…</p>}
       </div>
@@ -189,9 +189,9 @@ function AdminAppealDetail() {
 
   return (
     <div className={loading ? 'adm-refreshing' : ''}>
-      <Link to="/admin/appeals" className="adm-back">← All disputes</Link>
+      <Link to="/admin/appeals" className="adm-back">← All reports</Link>
       <PageHeader
-        eyebrow={`DISPUTE #${appeal.id}`}
+        eyebrow={`REPORT #${appeal.id}`}
         title={`@${scan?.username}`}
         subtitle={`Filed ${formatDateTime(appeal.created_at)} by ${appeal.filed_by?.full_name}`}
         actions={<><AppealStatusPill status={appeal.status} /> <SlaBadge sla={appeal.sla} /></>}
@@ -232,10 +232,10 @@ function AdminAppealDetail() {
           </Card>
         </div>
 
-        <Card eyebrow="DECISION" title={appeal.status === 'pending' ? 'Decide this dispute' : 'Decision recorded'}>
+        <Card eyebrow="DECISION" title={appeal.status === 'pending' ? 'Decide this report' : 'Decision recorded'}>
           {appeal.status === 'pending' && isOwn && (
             <div className="adm-notice">
-              You filed this dispute yourself, so you can't decide it. Another administrator has to review it — that's what keeps a decision independent.
+              You filed this report yourself, so you can't decide it. Another administrator has to review it — that's what keeps a decision independent.
             </div>
           )}
           {appeal.status === 'pending' && !isOwn && <DecisionForm appeal={appeal} onDecided={reload} />}

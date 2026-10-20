@@ -1,0 +1,53 @@
+﻿# TrustLens backend: website API, admin console, and the browser-extension
+# gateway (they share this one virtual environment).
+#
+# Exact versions that were tested together on 2026-09-28 (Python 3.13).
+#
+# Set up on a new machine, from the backend folder:
+#   python -m venv venv
+#   .\venv\Scripts\python.exe -m pip install torch==2.14.0 --index-url https://download.pytorch.org/whl/cpu
+#   .\venv\Scripts\python.exe -m pip install -r requirements.txt
+#
+# torch is installed first, on its own line above, because the CPU-only build
+# comes from PyTorch's own server, not from PyPI (the PyPI build is ~2 GB larger
+# and needs an NVIDIA GPU to be useful).
+#
+# NOT in git, copy these separately (see CLAUDE.md):
+#   backend/.env, browser_extension/gateway/.env    (API keys)
+#   misinfo_classifier/api/model/model.safetensors   (1.1 GB trained model)
+
+# Web server and API
+fastapi==0.141.1
+uvicorn==0.52.1
+pydantic==2.13.4
+python-multipart==0.0.32
+python-dotenv==1.2.2
+requests==2.34.2
+httpx==0.28.1
+
+# Database and login
+SQLAlchemy==2.0.54
+bcrypt==5.0.0
+PyJWT==2.14.0
+
+# Fake-account model (Random Forest) and graph clustering
+scikit-learn==1.9.0
+joblib==1.5.3
+numpy==2.5.1
+pandas==3.0.5
+networkx==3.6.1
+scipy==1.18.0
+matplotlib==3.11.1
+
+# Misinformation model (XLM-RoBERTa); torch is installed separately, see top
+transformers==5.16.1
+tokenizers==0.23.1
+safetensors==0.8.0
+protobuf==7.35.1
+
+# Reel audio transcription (browser extension)
+faster-whisper==1.2.1
+av==18.1.0
+
+# Tests
+pytest==9.1.1

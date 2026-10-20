@@ -1,33 +1,34 @@
 # ---------------------------------------------------------------------------
-# Starts the TrustLens browser-extension services, each in its own window so
-# you can see its logs and stop it individually.
+# Starts everything the TrustLens browser extension needs, each in its own
+# window so you can see its logs.
 #
-#   Ctrl+C in a window stops that service. Closing this window does not stop them.
+#   Close a window to stop that part. Closing THIS window stops nothing.
 #
 # Run:  powershell -ExecutionPolicy Bypass -File start_all.ps1
 #
-# WHAT CHANGED FROM THE ORIGINAL
+# WHAT RUNS (changed 2026-09-28)
 # ------------------------------
-# This used to point at three separate projects sitting elsewhere on one
-# machine (D:\trustlens_post_checker, D:\trustlens-fake-follower-detection,
-# D:\video-to-text transcriber). Two of those were never in this repository, so
-# the extension could not actually run for anyone else.
+# 1. The TrustLens website backend (port 8000). It holds the misinformation
+#    model and the fake-account model, and serves them to the extension too.
+#    If it's already running (you started the website with start.ps1), it is
+#    reused, not started twice.
+# 2. The extension gateway (port 8100): reads the reel, fetches Instagram data
+#    through RapidAPI, listens to the audio, and builds the badge.
 #
-# The classifier and account model are now served from this repo, by wrappers
-# around the very same models the TrustLens website uses. Nothing to install
-# separately, and the extension cannot disagree with the website because there
-# is only one of each model.
+# Before this change the extension started its own two model services (ports
+# 8001 and 8002), each loading a SECOND copy of models the website already had
+# in memory. On a friend's 8 GB laptop that ran Windows out of memory and the
+# misinformation service was killed a few reels in. Now there is one copy of
+# each model, shared by the website and the extension.
 #
-# Reel audio is now transcribed inside the gateway itself (faster-whisper), and
-# the post/account data comes from RapidAPI via backend/data_ingestion.py, so
-# there is nothing external to start any more.
+# If a window's program ever stops (for example it crashed), it restarts by
+# itself instead of silently staying down.
 # ---------------------------------------------------------------------------
 
 $ErrorActionPreference = "Stop"
 
 # This file lives in backend/browser_extension, so the backend is one level
-# up. Resolved from the script's own location rather than hardcoded, so it
-# works from any clone of the repo.
+# up. Resolved from the script's own location, so it works from any clone.
 $Gateway = Join-Path $PSScriptRoot "gateway"
 $Backend = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $Python  = Join-Path $Backend "venv\Scripts\python.exe"
@@ -39,37 +40,46 @@ if (-not (Test-Path $Python)) {
 }
 
 function Start-Service-Window($Title, $WorkDir, $Command) {
-    if (-not (Test-Path $WorkDir)) {
-        Write-Host "  SKIP  $Title  - not found at $WorkDir" -ForegroundColor Yellow
-        return
-    }
     Write-Host "  start $Title" -ForegroundColor Green
-    # If the service ever stops (for example Windows ran out of memory and
-    # killed it), it restarts by itself instead of silently staying down.
-    # Close the window to stop it for good.
-    $Loop = "while (`$true) { $Command; Write-Host 'Service stopped - restarting in 3 seconds (close this window to stop it).' -ForegroundColor Yellow; Start-Sleep 3 }"
+    $Loop = "while (`$true) { $Command; Write-Host 'Stopped - restarting in 3 seconds (close this window to stop it for good).' -ForegroundColor Yellow; Start-Sleep 3 }"
     Start-Process powershell -ArgumentList @(
         "-NoExit", "-Command",
         "`$Host.UI.RawUI.WindowTitle='TrustLens - $Title'; Set-Location '$WorkDir'; $Loop"
     )
 }
 
-Write-Host "`nStarting TrustLens extension services...`n" -ForegroundColor Cyan
+function Test-Url($Url) {
+    try {
+        $r = Invoke-WebRequest -Uri $Url -UseBasicParsing -TimeoutSec 3
+        return $r.StatusCode -lt 400
+    } catch {
+        return $false
+    }
+}
 
-# 1. Post checker (port 8001) - wraps the site's own XLM-RoBERTa misinformation
-#    classifier and adds the rule-based red-flag scan. Loads a ~1 GB model.
-Start-Service-Window "classifier :8001" $Gateway `
-    "& '$Python' -m uvicorn post_checker_api:app --port 8001"
+Write-Host "`nStarting TrustLens for the browser extension...`n" -ForegroundColor Cyan
 
-# 2. Account model (port 8002) - wraps the site's own Random Forest.
-Start-Service-Window "account model :8002" $Gateway `
-    "& '$Python' -m uvicorn follower_api:app --port 8002"
+# 1. Website backend (holds the models).
+if (Test-Url "http://127.0.0.1:8000/ext/classifier/health") {
+    Write-Host "  reuse the TrustLens website backend that's already running on port 8000" -ForegroundColor Green
+} elseif (Test-Url "http://127.0.0.1:8000/") {
+    Write-Host "  Something is already running on port 8000 but it's an OLDER TrustLens backend" -ForegroundColor Yellow
+    Write-Host "  (it doesn't share its models with the extension yet). Close that window," -ForegroundColor Yellow
+    Write-Host "  then run this script again." -ForegroundColor Yellow
+    exit 1
+} else {
+    Start-Service-Window "website backend :8000" $Backend `
+        "& '$Python' -m uvicorn main:app --port 8000"
+}
 
-# 3. The gateway the extension talks to (port 8100). Also fetches Instagram data
-#    through RapidAPI and listens to reel audio (loads the Whisper model).
-Start-Service-Window "gateway :8100" $Gateway `
-    "& '$Python' -m uvicorn main:app --port 8100"
+# 2. The gateway the extension talks to.
+if (Test-Url "http://127.0.0.1:8100/") {
+    Write-Host "  the gateway is already running on port 8100 (close its window first to restart it)" -ForegroundColor Yellow
+} else {
+    Start-Service-Window "extension gateway :8100" $Gateway `
+        "& '$Python' -m uvicorn main:app --port 8100"
+}
 
-Write-Host "`nGive them ~30s (the classifier loads a 1 GB model), then check:" -ForegroundColor Cyan
-Write-Host "  http://127.0.0.1:8100/health`n"
-Write-Host "The extension popup shows the same status with a dot per service.`n"
+Write-Host "`nGive it about 30 seconds (the models are loading), then open the extension" -ForegroundColor Cyan
+Write-Host "popup: every dot should be green. Yellow 'loading...' means wait a little longer."
+Write-Host "The very first start on a new laptop also downloads the speech model (~150 MB).`n"

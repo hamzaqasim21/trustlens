@@ -203,7 +203,9 @@ def test_missing_profile_is_refused_not_zero_filled(monkeypatch):
             return {"error": "Invalid or missing username or user does not exist on Instagram"}
 
     monkeypatch.setattr(data_ingestion.requests, "post", lambda *a, **k: Resp())
-    with pytest.raises(Exception, match="does not exist"):
+    # Its own error type, so the website can say "check the spelling" rather
+    # than "try again" — see ScanPage.jsx.
+    with pytest.raises(data_ingestion.ProfileNotFoundError, match="no public Instagram account"):
         data_ingestion.fetch_instagram_profile("ghost_account")
 
 
@@ -386,3 +388,96 @@ def test_unclear_speech_is_shown_but_never_scored(api, fakes, monkeypatch):
     assert v["transcript"]["not_counted"] is True
     assert v["coverage"]["speech_read"] is True        # it WAS listened to
     assert any("unclear" in n for n in v["not_checked"])
+
+
+# --------------------------------------------------------------------------- #
+# 2026-09-28: shared models, "Scan this reel" warm-up, audio-only track
+# --------------------------------------------------------------------------- #
+import asyncio  # noqa: E402
+
+import httpx  # noqa: E402
+
+
+def test_model_service_moves_on_only_when_nothing_is_listening(monkeypatch):
+    calls = []
+
+    class FakeClient:
+        def __init__(self, *a, **k): pass
+        async def __aenter__(self): return self
+        async def __aexit__(self, *a): return False
+
+        async def post(self, url, json=None):
+            calls.append(url)
+            if url.startswith("http://first"):
+                raise httpx.ConnectError("refused")
+            return httpx.Response(200, json={"ok": True}, request=httpx.Request("POST", url))
+
+    monkeypatch.setattr(clients.httpx, "AsyncClient", FakeClient)
+    svc = clients._Service("x", ["http://first", "http://second"])
+    r = asyncio.run(svc.post("/check-text", {}, 5))
+    assert r.status_code == 200 and svc.current == "http://second"
+    calls.clear()
+    asyncio.run(svc.post("/check-text", {}, 5))
+    assert calls == ["http://second/check-text"]      # remembered, no retrying the dead one
+
+
+def test_default_model_addresses_prefer_the_shared_website_copy(monkeypatch):
+    import config
+    assert config._urls("", ["http://a", "http://b"]) == ["http://a", "http://b"]
+    # an old .env pointing at 8001 is tried first but the others stay as fallbacks
+    assert config._urls("http://127.0.0.1:8001", ["http://w", "http://127.0.0.1:8001"]) == \
+        ["http://127.0.0.1:8001", "http://w"]
+
+
+def test_warm_fetches_data_but_never_runs_a_model(api, fakes):
+    instagram_data._cache.clear()
+    r = api.post("/warm", json={"page_url": REEL, "username": "real_creator"}).json()
+    assert r["warming"] == "ABCdef123"
+    import time as _t
+    for _ in range(50):
+        if fakes.get("engagement"):
+            break
+        _t.sleep(0.02)
+    assert fakes["profile"] == ["real_creator"] and fakes["engagement"] == ["real_creator"]
+    assert fakes["listen"] == 0 and fakes["predict"] == [] and fakes["classify"] == []
+
+
+def test_audio_track_is_heard_first_and_the_video_is_the_fallback(monkeypatch):
+    reel_audio._cache.clear()
+    tried = []
+
+    def fake_once(url, code, on_screen, progress, started):
+        tried.append(url)
+        if "audio" in url:
+            raise RuntimeError("audio track wouldn't decode")
+        return {"available": True, "text": "hi", "no_speech": False, "is_reliable": True}
+
+    monkeypatch.setattr(reel_audio, "_listen_once", fake_once)
+    monkeypatch.setattr(reel_audio, "_IMPORT_ERROR", None)
+    r = reel_audio.transcribe("Zz1", ["https://x.cdninstagram.com/audio.mp4",
+                                      "https://x.cdninstagram.com/video.mp4"], lambda *a: None)
+    assert tried == ["https://x.cdninstagram.com/audio.mp4", "https://x.cdninstagram.com/video.mp4"]
+    assert r["available"] and r["via"] == "video file"
+    reel_audio._cache.clear()
+
+
+def test_listen_urls_put_the_small_audio_track_first():
+    assert main._listen_urls({"audio_url": "A", "video_url": "V"}) == ["A", "V"]
+    assert main._listen_urls({"video_url": "V"}) == ["V"]
+
+
+def test_audio_link_from_the_page_gets_the_same_host_check():
+    item = instagram_data.clean_page_media(dict(PAGE_ITEM, audio_url="https://evil.example/a.mp4"))
+    assert item["audio_url"] == ""
+    item = instagram_data.clean_page_media(dict(PAGE_ITEM, audio_url="https://scontent.cdninstagram.com/a.mp4"))
+    assert item["audio_url"].endswith("/a.mp4")
+
+
+def test_badge_verdict_combines_flags_from_every_text():
+    a = {"available": True, "post_risk_score": 10, "category": "credible",
+         "red_flags": [{"type": "urgency", "detail": "x"}]}
+    b = {"available": True, "post_risk_score": 90, "category": "financial_scam",
+         "red_flags": [{"type": "financial_promise", "detail": "y"}]}
+    c = main._combine([a, b])
+    assert c["category"] == "financial_scam"
+    assert {f["type"] for f in c["red_flags"]} == {"urgency", "financial_promise"}

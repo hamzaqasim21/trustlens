@@ -27,17 +27,17 @@ function DisputePanel({ scanId, username, scannedWhileLoggedIn, appealStatus }) 
   const [done, setDone] = useState('')
   const submittingRef = useRef(false)
 
-  // The scan couldn't be saved, so there's no record to dispute.
+  // The scan couldn't be saved, so there's no record to report.
   if (!scanId) return null
 
   if (done || appealStatus) {
     const [label, body, tone] = done
-      ? ['Dispute submitted', done, 'warn']
+      ? ['Report submitted', done, 'warn']
       : STATUS_TEXT[appealStatus] || STATUS_TEXT.pending
     return (
       <div className="dp tl-card tl-card-pad" role="status">
-        <span className="tl-eyebrow">Your dispute</span>
-        <h3 className="dp-title">Disputed · <span className={`dp-tone-${tone}`}>{label}</span></h3>
+        <span className="tl-eyebrow">Your report</span>
+        <h3 className="dp-title">Reported · <span className={`dp-tone-${tone}`}>{label}</span></h3>
         <p className="dp-muted">{body}</p>
         <Link to="/dashboard" className="tl-btn tl-btn-outline tl-btn-sm">Follow it on your dashboard</Link>
       </div>
@@ -49,7 +49,7 @@ function DisputePanel({ scanId, username, scannedWhileLoggedIn, appealStatus }) 
       <div className="dp tl-card tl-card-pad">
         <span className="tl-eyebrow">Think this score is wrong?</span>
         <p className="dp-muted">
-          Disputes are tied to your account. <Link to="/login" className="tl-link">Log in</Link> and scan again to file one.
+          Reports are tied to your account. <Link to="/login" className="tl-link">Log in</Link> and scan again to file one.
         </p>
       </div>
     )
@@ -59,12 +59,12 @@ function DisputePanel({ scanId, username, scannedWhileLoggedIn, appealStatus }) 
     return (
       <div className="dp dp-invite tl-card tl-card-pad">
         <span className="tl-eyebrow">Think this score is wrong?</span>
-        <h3 className="dp-title">Dispute it.</h3>
+        <h3 className="dp-title">Report this score.</h3>
         <p className="dp-muted">
-          A person on the TrustLens team reviews every dispute within 48 hours. If the evidence holds up, the score is
+          A person on the TrustLens team reviews every report within 48 hours. If the evidence holds up, the score is
           corrected, and the case is used to improve the models.
         </p>
-        <button className="tl-btn tl-btn-ink" onClick={() => setOpen(true)}>Dispute this score</button>
+        <button className="tl-btn tl-btn-ink" onClick={() => setOpen(true)}>Report this score</button>
       </div>
     )
   }
@@ -79,7 +79,7 @@ function DisputePanel({ scanId, username, scannedWhileLoggedIn, appealStatus }) 
       const res = await createAppeal(scanId, reason.trim(), evidence.trim())
       setDone(res.message)
     } catch (err) {
-      setError(err.message || 'Could not submit the dispute.')
+      setError(err.message || 'Could not submit the report.')
     } finally {
       setBusy(false)
       submittingRef.current = false
@@ -90,7 +90,7 @@ function DisputePanel({ scanId, username, scannedWhileLoggedIn, appealStatus }) 
 
   return (
     <form className="dp tl-card tl-card-pad" onSubmit={submit}>
-      <span className="tl-eyebrow">Dispute this score</span>
+      <span className="tl-eyebrow">Report this score</span>
       <h3 className="dp-title">What did we get wrong about @{username}?</h3>
 
       <label className="tl-field">
@@ -124,7 +124,7 @@ function DisputePanel({ scanId, username, scannedWhileLoggedIn, appealStatus }) 
       <div className="dp-actions">
         <button type="button" className="tl-btn tl-btn-soft" onClick={() => setOpen(false)} disabled={busy}>Cancel</button>
         <button type="submit" className="tl-btn tl-btn-grad" disabled={busy || reasonLen < REASON_MIN}>
-          {busy ? 'Submitting…' : 'Submit dispute'}
+          {busy ? 'Submitting…' : 'Submit report'}
         </button>
       </div>
     </form>

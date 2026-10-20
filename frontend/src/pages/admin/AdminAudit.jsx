@@ -26,7 +26,7 @@ function Details({ entry }) {
     case 'appeal.resolve':
       return (
         <>
-          {d.decision} dispute on @{d.username}
+          {d.decision} report on @{d.username}
           {d.decision === 'upheld' && ` — score ${d.original_score} → ${d.corrected_score}, at fault: ${MODULE_LABEL[d.module_at_fault] || d.module_at_fault}`}
           {d.within_sla === false && ' — after the 48-hour deadline'}
         </>
@@ -82,7 +82,7 @@ function AdminAudit() {
       <Card>
         {!data && loading && <p className="adm-muted">Loading…</p>}
         {data && data.items.length === 0 && (
-          <EmptyState title="Nothing recorded yet">Suspensions, role changes, dispute decisions and data exports will appear here.</EmptyState>
+          <EmptyState title="Nothing recorded yet">Suspensions, role changes, report decisions and data exports will appear here.</EmptyState>
         )}
         {data && data.items.length > 0 && (
           <>

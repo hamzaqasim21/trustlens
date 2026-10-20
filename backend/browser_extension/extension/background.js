@@ -16,7 +16,9 @@
  */
 
 const GATEWAY = "http://127.0.0.1:8100";
-const SETTINGS_VERSION = 2;
+// 3: "Scan this reel" (on demand) became the default instead of checking
+// every reel automatically.
+const SETTINGS_VERSION = 3;
 
 chrome.runtime.onInstalled.addListener(async () => {
   const { settings } = await chrome.storage.local.get("settings");
@@ -24,7 +26,7 @@ chrome.runtime.onInstalled.addListener(async () => {
     await chrome.storage.local.set({
       settings: {
         enabled: settings ? settings.enabled !== false : true,
-        autoScan: settings ? settings.autoScan !== false : true,
+        autoScan: false,
         autoTranscribe: true,
         version: SETTINGS_VERSION,
       },

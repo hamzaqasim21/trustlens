@@ -17,7 +17,7 @@ import smtplib
 from email.mime.text import MIMEText
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"))
 
 GMAIL_ADDRESS = os.getenv("GMAIL_ADDRESS")
 GMAIL_APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD")
@@ -50,6 +50,20 @@ def send_verification_code(to_email: str, code: str) -> None:
     msg["From"] = GMAIL_ADDRESS
     msg["To"] = to_email
 
+    with smtplib.SMTP("smtp.gmail.com", 587, timeout=15) as server:
+        server.starttls()
+        server.login(GMAIL_ADDRESS, GMAIL_APP_PASSWORD)
+        server.sendmail(GMAIL_ADDRESS, [to_email], msg.as_string())
+
+
+def send_email(to_email: str, subject: str, body: str) -> None:
+    """Plain-text email through the same Gmail sender. Raises on failure."""
+    if not email_configured():
+        raise RuntimeError("Email isn't configured (GMAIL_ADDRESS / GMAIL_APP_PASSWORD).")
+    msg = MIMEText(body)
+    msg["Subject"] = subject
+    msg["From"] = GMAIL_ADDRESS
+    msg["To"] = to_email
     with smtplib.SMTP("smtp.gmail.com", 587, timeout=15) as server:
         server.starttls()
         server.login(GMAIL_ADDRESS, GMAIL_APP_PASSWORD)

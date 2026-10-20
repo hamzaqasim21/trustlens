@@ -105,6 +105,10 @@ TL.ui = (function () {
     // reel's audio is being checked.
     row.appendChild(el("span", "tl-row-status"));
     row.appendChild(el("span", "tl-row-score"));
+    // "Scan this reel" — only shown while the badge is idle (see setIdle).
+    const scanBtn = el("button", "tl-row-action", "Scan this reel");
+    scanBtn.type = "button";
+    row.appendChild(scanBtn);
     row.appendChild(el("span", "tl-chevron", "▾"));
     row.appendChild(el("span", "tl-brand", "TrustLens"));
 
@@ -141,6 +145,24 @@ TL.ui = (function () {
     badge.className = "tl-badge tl-" + level
       + (floating ? " tl-floating" : "")
       + (collapsed ? " tl-collapsed" : "");
+  }
+
+  /** Idle: nothing checked yet. One button, and nothing else on screen. */
+  function setIdle(badge, onScan) {
+    setLevel(badge, "idle");
+    badge.classList.add("tl-collapsed");
+    clearBelowRow(badge);
+    setRowScore(badge, null);
+    setListening(badge, null);
+    badge.querySelector(".tl-title").textContent = "Check this reel?";
+    const btn = badge.querySelector(".tl-row-action");
+    btn.disabled = false;
+    // onclick (not addEventListener) so each reel replaces the last handler.
+    btn.onclick = (e) => {
+      e.stopPropagation();          // don't also toggle the badge open
+      btn.disabled = true;
+      onScan();
+    };
   }
 
   function setPending(badge, message) {
@@ -310,8 +332,17 @@ TL.ui = (function () {
     const tr = verdict.transcript;
     if (tr && tr.available && (tr.text || "").trim()) {
       const box = el("div", "tl-transcript");
-      box.appendChild(el("div", "tl-transcript-head", "What the video said"));
-      box.appendChild(el("div", "tl-transcript-body", tr.text.trim()));
+      if (tr.is_reliable === false) {
+        // On music the speech model "hears" words that aren't there (seen:
+        // Russian "musical intro" on a Pakistani news reel). Showing that as
+        // what the video said would mislead; it isn't scored either.
+        box.appendChild(el("div", "tl-transcript-head", "No clear speech (likely music)"));
+        box.appendChild(el("div", "tl-transcript-meta",
+          `The speech model's unsure guess, ignored: “${tr.text.trim().slice(0, 140)}”`));
+      } else {
+        box.appendChild(el("div", "tl-transcript-head", "What the video said"));
+        box.appendChild(el("div", "tl-transcript-body", tr.text.trim()));
+      }
 
       const bits = [];
       if (tr.language) {
@@ -324,7 +355,7 @@ TL.ui = (function () {
           ? Math.round(tr.video_seconds / 60) + "-min" : Math.round(tr.video_seconds) + "s";
         bits.push(`Heard the first ${Math.round(tr.listened_seconds)}s of a ${len} video`);
       }
-      if (tr.engine) bits.push("Transcribed by " + tr.engine);
+      if (tr.engine) bits.push("Transcribed by " + tr.engine + (tr.via ? " from the " + tr.via : ""));
       if (tr.is_reliable === false) bits.push("unclear audio, so not used for the score");
       if (bits.length) box.appendChild(el("div", "tl-transcript-meta", bits.join(" · ")));
       badge.appendChild(box);
@@ -382,13 +413,26 @@ TL.ui = (function () {
     }
   }
 
-  return { makeBadge, setPending, setError, setProgress, setListening, render };
+  return { makeBadge, setIdle, setPending, setError, setProgress, setListening, render };
 })();
 
 /* ---------------------------------------------------------------------- *
  * Analysis driver, one post at a time.
  * ---------------------------------------------------------------------- */
 TL.listening = new Set();   // reels whose audio is being listened to right now
+
+/** "Scan this reel" mode: you've stayed on this reel for a moment, so fetch
+ *  its data now (network only) and pressing Scan answers almost at once. */
+TL.warmed = new Set();
+TL.warmPost = function (postData) {
+  if (TL.warmed.has(postData.key) || TL.cache.has(postData.key)) return;
+  TL.warmed.add(postData.key);
+  TL.api.warm({
+    page_url: postData.page_url,
+    username: postData.author || (TL.pageMedia.get(postData.key) || {}).username || "",
+    media: TL.pageMedia.get(postData.key) || undefined,
+  });
+};
 
 /* ---------------------------------------------------------------------- *
  * Reel data from Instagram's own page (see page_hook.js).
@@ -432,6 +476,10 @@ TL.currentIsFinished = function () {
 };
 
 TL.schedulePrefetch = function ({ listen }) {
+  // Pre-checking the NEXT reels only makes sense when every reel is checked
+  // automatically. In "Scan this reel" mode nothing is done for a reel you
+  // didn't ask about.
+  if (!TL.settings.autoScan) return;
   const kind = listen ? "audio" : "data";
   if (prefetchTimers[kind]) clearTimeout(prefetchTimers[kind]);
   prefetchTimers[kind] = setTimeout(() => {

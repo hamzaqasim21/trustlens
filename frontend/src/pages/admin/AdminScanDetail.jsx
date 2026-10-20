@@ -72,18 +72,18 @@ function AdminScanDetail() {
             </div>
             {s.corrected_trust_score !== null && (
               <p className="adm-footnote">
-                Corrected after a dispute. The models originally scored this {s.trust_score} ({s.verdict}) — that original is kept on record.
+                Corrected after a report. The models originally scored this {s.trust_score} ({s.verdict}) — that original is kept on record.
               </p>
             )}
           </Card>
-          <Card eyebrow="DISPUTE" title="Dispute status">
+          <Card eyebrow="REPORT" title="Report status">
             {data.appeal_id ? (
               <dl className="adm-facts">
                 <div><dt>Status</dt><dd><AppealStatusPill status={data.appeal_status} /></dd></div>
-                <div><dt>Case</dt><dd><Link to={`/admin/appeals/${data.appeal_id}`} className="adm-link">Open dispute #{data.appeal_id} →</Link></dd></div>
+                <div><dt>Case</dt><dd><Link to={`/admin/appeals/${data.appeal_id}`} className="adm-link">Open report #{data.appeal_id} →</Link></dd></div>
               </dl>
             ) : (
-              <p className="adm-muted">Nobody has disputed this score.</p>
+              <p className="adm-muted">Nobody has reported this score.</p>
             )}
           </Card>
           {data.owner && (

@@ -15,7 +15,11 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import sessionmaker, declarative_base
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./trustlens.db")
+# Absolute path, so the server always opens THIS file whichever folder it was
+# started from. A relative "./trustlens.db" would quietly create a new, empty
+# database somewhere else, and every account would seem to have vanished.
+_DEFAULT_DB = os.path.join(os.path.dirname(os.path.abspath(__file__)), "trustlens.db")
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///" + _DEFAULT_DB.replace("\\", "/"))
 
 connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
 engine = create_engine(DATABASE_URL, connect_args=connect_args)
@@ -87,6 +91,10 @@ class ScanHistory(Base):
     corrected_trust_score = Column(Float, nullable=True)
     corrected_verdict = Column(String, nullable=True)
 
+    # Where the scan came from: "web" (someone pressed Scan) or "watchlist"
+    # (an automatic re-check of a watched account).
+    source = Column(String, default="web")
+
 
 class Appeal(Base):
     """A user disputing a score. Scope document §7: "an appeal mechanism
@@ -130,6 +138,43 @@ class AuditLog(Base):
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
 
 
+class WatchedAccount(Base):
+    """An account a user asked to keep an eye on. Scope §10, normal users:
+    "Can save accounts for ongoing monitoring and receive alerts when scores
+    drop." last_score is what the newest check said; an Alert is raised when
+    a later check comes in lower."""
+    __tablename__ = "watched_accounts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), index=True)
+    username = Column(String, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    baseline_score = Column(Float, nullable=True)     # the score when it was first watched
+    last_score = Column(Float, nullable=True)
+    last_verdict = Column(String, nullable=True)
+    last_scan_id = Column(Integer, ForeignKey("scan_history.id"), nullable=True)
+    last_checked_at = Column(DateTime, nullable=True)
+    last_error = Column(String, nullable=True)
+
+
+class Alert(Base):
+    """A watched account's score dropped. Shown on the Dashboard, and emailed
+    when the Gmail sender is configured."""
+    __tablename__ = "alerts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), index=True)
+    username = Column(String)
+    old_score = Column(Float)
+    new_score = Column(Float)
+    old_verdict = Column(String, nullable=True)
+    new_verdict = Column(String, nullable=True)
+    scan_id = Column(Integer, ForeignKey("scan_history.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    read = Column(Boolean, default=False)
+    emailed = Column(Boolean, default=False)
+
+
 # Columns added to tables that already exist on people's machines.
 # create_all() only creates *missing tables*; it never alters an existing one,
 # so without this an existing trustlens.db would crash on the first query
@@ -144,6 +189,7 @@ _ADDED_COLUMNS = {
     "scan_history": {
         "corrected_trust_score": "FLOAT",
         "corrected_verdict": "VARCHAR",
+        "source": "VARCHAR DEFAULT 'web'",
     },
 }
 
@@ -160,7 +206,52 @@ def _add_missing_columns():
                     conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}"))
 
 
+# --------------------------------------------------------------------------- #
+# Automatic backups
+# --------------------------------------------------------------------------- #
+# Every time the backend starts, a dated copy of the database is saved to
+# backend/backups/ (gitignored — it holds real emails and password hashes),
+# keeping the newest BACKUPS_KEPT. Set TRUSTLENS_BACKUP_DIR in backend/.env to
+# ALSO copy it somewhere off this disk (a USB drive, or a Google Drive / OneDrive
+# folder that syncs to the cloud), so losing the laptop doesn't lose the data.
+# Uses SQLite's own backup command, which makes a consistent copy even if the
+# database is being written to at that moment (a plain file copy might not).
+BACKUPS_KEPT = 14
+_BACKUP_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "backups")
+
+
+def backup_database():
+    if not DATABASE_URL.startswith("sqlite:///"):
+        return []          # a real database server has its own backup tooling
+    import sqlite3
+    src_path = DATABASE_URL[len("sqlite:///"):]
+    if not os.path.exists(src_path) or os.path.getsize(src_path) == 0:
+        return []
+    stamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
+    made = []
+    for folder in [_BACKUP_DIR, os.getenv("TRUSTLENS_BACKUP_DIR", "").strip()]:
+        if not folder:
+            continue
+        try:
+            os.makedirs(folder, exist_ok=True)
+            dest = os.path.join(folder, f"trustlens_{stamp}.db")
+            src, dst = sqlite3.connect(src_path), sqlite3.connect(dest)
+            with dst:
+                src.backup(dst)
+            src.close()
+            dst.close()
+            made.append(dest)
+            old = sorted(f for f in os.listdir(folder) if f.startswith("trustlens_") and f.endswith(".db"))
+            for f in old[:-BACKUPS_KEPT]:
+                os.remove(os.path.join(folder, f))
+        except Exception as e:   # a failed backup must never stop the site starting
+            print(f"[TrustLens] Database backup to {folder} failed: {e}")
+    return made
+
+
 def init_db():
+    if not os.getenv("TRUSTLENS_DISABLE_BACKGROUND"):   # not during tests
+        backup_database()
     Base.metadata.create_all(bind=engine)
     _add_missing_columns()
 

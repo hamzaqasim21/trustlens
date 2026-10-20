@@ -59,6 +59,15 @@ TL.api = (function () {
     }
   }
 
+  /** Get a reel ready to scan (fetch its data only; nothing is analysed). */
+  async function warm(payload) {
+    try {
+      return await relay({ path: "/warm", method: "POST", body: payload, timeoutMs: 8000 });
+    } catch (e) {
+      return null;   // only costs speed
+    }
+  }
+
   async function explain(verdict) {
     return relay({ path: "/explain", method: "POST", body: { verdict }, timeoutMs: 60000 });
   }
@@ -79,5 +88,5 @@ TL.api = (function () {
     return relay({ path: "/health", timeoutMs: 5000 });
   }
 
-  return { analyze, explain, health, progress, prefetch };
+  return { analyze, explain, health, progress, prefetch, warm };
 })();

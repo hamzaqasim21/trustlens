@@ -1,0 +1,46 @@
+.cs-stack { display: grid; gap: 24px; }
+.cs-loading { padding: 40px; display: grid; place-items: center; }
+.cs-card { display: grid; gap: 14px; align-content: start; justify-items: start; min-width: 0; }
+.cs-card h2 { font-size: clamp(24px, 2.4vw, 32px); letter-spacing: -0.02em; }
+.cs-card > .tl-alert { justify-self: stretch; }
+.cs-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; width: 100%; }
+.cs-bar { flex: 1; max-width: 560px; }
+.cs-code { display: grid; gap: 12px; width: 100%; padding: 16px 18px; border-radius: 18px; background: var(--lav); }
+.cs-code-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.cs-code code { font-size: 26px !important; font-weight: 800; letter-spacing: 0.06em; padding: 8px 14px !important; background: #FFFFFF !important; }
+.cs-code ol { margin: 0; padding-left: 20px; display: grid; gap: 4px; font-size: 14.5px; }
+.cs-code > .tl-btn { justify-self: start; }
+.cs-why { max-width: 70ch; }
+
+.cs-verified-head { display: grid; gap: 6px; }
+.cs-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; align-items: start; }
+.cs-score { justify-items: center; text-align: center; }
+.cs-score .rx-conf { justify-self: stretch; text-align: left; }
+
+.cs-signals { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; width: 100%; }
+.cs-signals li {
+  display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center;
+  padding: 12px 14px; border-radius: 14px; background: var(--lav);
+  box-shadow: inset 3px 0 0 var(--ink-line);
+}
+.cs-signals li div { display: grid; gap: 2px; }
+.cs-signals li span { font-size: 13px; color: var(--ink-soft); }
+.cs-signals li b { font: 800 18px/1 var(--mono); }
+.cs-sig-ok { box-shadow: inset 3px 0 0 var(--ok-ink) !important; }
+.cs-sig-warn { box-shadow: inset 3px 0 0 var(--warn-ink) !important; }
+.cs-sig-bad { box-shadow: inset 3px 0 0 var(--bad-ink) !important; }
+
+.cs-tips { margin: 0; padding-left: 20px; display: grid; gap: 10px; font-size: 15px; line-height: 1.5; }
+.cs-badges { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; width: 100%; }
+.cs-badges li { display: flex; justify-content: space-between; gap: 12px; align-items: center; flex-wrap: wrap; padding: 10px 14px; border-radius: 14px; background: var(--lav); }
+.cs-badges li > div:first-child { display: grid; gap: 2px; }
+.cs-badges li span { font-size: 12px; color: var(--ink-soft); }
+.cs-badges li.is-old { opacity: 0.55; }
+.cs-badge-acts { display: flex; gap: 14px; align-items: center; }
+.cs-page .br-linkbtn {
+  border: 0; background: none; cursor: pointer; padding: 0;
+  font: 700 14px/1 var(--display); color: var(--pink);
+  text-decoration: underline; text-underline-offset: 3px;
+}
+
+@media (max-width: 900px) { .cs-grid { grid-template-columns: 1fr; } }

@@ -138,7 +138,7 @@ function Scanning({ username, onRetry }) {
           return
         }
         clearPendingScan()
-        setError(err.message || 'Something went wrong. Try again.')
+        setError({ message: err.message || 'Something went wrong. Try again.', kind: err.kind })
       })
       .finally(() => clearInterval(tick))
 
@@ -149,16 +149,25 @@ function Scanning({ username, onRetry }) {
   }, [username, navigate])
 
   if (error) {
+    // "not_found" means the username itself is the problem — a real answer
+    // came back saying so, quickly. Anything else is Instagram/the network
+    // being slow, where a retry genuinely helps. Different message, because
+    // telling someone to "check the spelling" when the real cause was a
+    // network stall (or the reverse) is its own kind of misleading.
+    const notFound = error.kind === 'not_found'
     return (
       <section className="sc-run">
         <div className="tl-wrap-narrow">
           <div className="sc-fail tl-card tl-card-pad">
-            <span className="tl-chip tl-chip-bad">Scan didn’t finish</span>
-            <h1 className="tl-display sc-fail-title">We couldn’t check @{username}.</h1>
-            <p className="tl-lede">{error}</p>
+            <span className="tl-chip tl-chip-bad">{notFound ? 'Account not found' : 'Scan didn’t finish'}</span>
+            <h1 className="tl-display sc-fail-title">
+              {notFound ? `@${username} doesn’t exist on Instagram.` : `We couldn’t check @${username}.`}
+            </h1>
+            <p className="tl-lede">{error.message}</p>
             <p className="sc-fail-tips">
-              Check the spelling, make sure the account is public, and try again. If Instagram was slow to answer,
-              a second try usually works.
+              {notFound
+                ? 'Double-check the spelling and try again — this isn’t a network problem, Instagram told us this account doesn’t exist.'
+                : 'This looks like Instagram or the network being slow, not a problem with the username. A second try usually works.'}
             </p>
             <div className="sc-fail-actions">
               <button className="tl-btn tl-btn-grad" onClick={onRetry}>Try again</button>

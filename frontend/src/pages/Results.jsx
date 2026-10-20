@@ -4,6 +4,7 @@ import PageShell from '../components/site/PageShell'
 import ScoreRing from '../components/site/ScoreRing'
 import Reveal from '../components/site/Reveal'
 import DisputePanel from '../components/DisputePanel'
+import { ReportActions } from '../components/ResultExtras'
 import { useAuth } from '../context/AuthContext'
 import { getSavedResult } from '../api/trustlens'
 import { scanPath } from '../lib/scanFlow'
@@ -41,7 +42,19 @@ function describeEngagementRate(rate, benchmark, tier) {
   return `On average, ${rate}% of this account's followers interact with each post. For an account this size (the "${tier}" tier), a typical rate is around ${benchmark}%, so this account sits ${relation} what's normal for its size.`
 }
 
-function describeLikeCommentRatio(ratio) {
+// True when no comment numbers can be trusted: the creator turned comments
+// off (the backend marks it), or, on scans saved before that marker existed,
+// every recent post shows exactly zero comments.
+function commentsUnavailable(result) {
+  if (result.engagement_analysis?.comments_off) return true
+  const posts = result.engagement_data?.posts || []
+  return posts.length >= 3 && posts.every((p) => !p.comments)
+}
+
+function describeLikeCommentRatio(ratio, noComments) {
+  if (noComments || ratio === null || ratio === undefined) {
+    return 'No comments were visible on any recent post (the creator has turned comments off or restricted them), so likes-per-comment wasn’t judged. Zero comments here is a setting, not a sign of fake engagement.'
+  }
   if (ratio > 500) {
     return `For every comment, this account gets about ${Math.round(ratio).toLocaleString()} likes, an unusually extreme gap that can indicate comments aren't organic.`
   }
@@ -411,11 +424,11 @@ function ScoreBreakdown({ result }) {
         weight={weights.engagement ?? 0}
         badgeText={eng.status}
         badgeTone={toneFromColor(eng.color)}
-        explanation={engagementMeasured ? `${describeEngagementRate(eng.engagement_rate, eng.benchmark, eng.tier)} ${describeLikeCommentRatio(eng.like_comment_ratio)}` : null}
+        explanation={engagementMeasured ? `${describeEngagementRate(eng.engagement_rate, eng.benchmark, eng.tier)} ${describeLikeCommentRatio(eng.like_comment_ratio, commentsUnavailable(result))}` : null}
         metrics={engagementMeasured ? [
           ['Engagement rate', `${eng.engagement_rate}%`],
           ['Benchmark for its size', `${eng.benchmark}% (${eng.tier} tier)`],
-          ['Like-to-comment ratio', eng.like_comment_ratio],
+          ['Like-to-comment ratio', commentsUnavailable(result) ? 'Not judged (comments off)' : eng.like_comment_ratio],
         ] : []}
         inactiveNote={engagementMeasured ? null :
           'Instagram didn’t return any posts for this account on this scan, so there was nothing to measure. Its weight went to the checks that did run, rather than treating “no data” as “no engagement”.'}
@@ -603,7 +616,7 @@ function ResultView({ result }) {
             {correction && (
               <p className="tl-alert tl-alert-grad rs-correction">
                 <span>
-                  <strong>Corrected after review.</strong> A reviewer upheld a dispute on this scan and set the score to{' '}
+                  <strong>Corrected after review.</strong> A reviewer upheld a report on this scan and set the score to{' '}
                   <strong>{correction.trust_score} ({correction.verdict})</strong>. The original result the models gave is shown
                   below, unchanged.
                 </span>
@@ -615,6 +628,7 @@ function ResultView({ result }) {
               <button className="tl-btn tl-btn-outline" onClick={() => navigate('/comparison', { state: { a: result.username } })}>Compare</button>
               <button className="tl-btn tl-btn-soft" onClick={() => navigate(scanPath(result.username))}>Re-scan</button>
             </div>
+            <ReportActions result={result} />
           </div>
 
           <div className="rs-hero-side">
@@ -668,7 +682,7 @@ function ResultView({ result }) {
                 <strong>Compare side by side</strong><span>Put @{result.username} against another account</span>
               </Link>
               <Link to="/dashboard" className="rs-next-link tl-card tl-card-hover">
-                <strong>Your scan history</strong><span>Every scan, and any disputes you’ve filed</span>
+                <strong>Your scan history</strong><span>Every scan, and any reports you’ve filed</span>
               </Link>
             </div>
           </div>
@@ -696,8 +710,8 @@ function Results() {
   // background and prefer it once it arrives — router state is only used to
   // paint instantly before that lands. State alone isn't reliable once a
   // scan id exists: a hard reload keeps the browser's OWN history.state from
-  // before a dispute was filed (found live — filing a dispute, then
-  // reloading, kept showing "not yet disputed" because of this), and a link
+  // before a report was filed (found live — filing a report, then
+  // reloading, kept showing "not yet reported" because of this), and a link
   // from the Dashboard carries no state at all. Costs no RapidAPI quota.
   const needFetch = Boolean(id) && Boolean(user)
   useEffect(() => {

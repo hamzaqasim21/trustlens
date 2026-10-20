@@ -28,10 +28,15 @@ TL.observer = (function () {
   let badge = null;        // the one badge element (lives under <html>)
   let shownKey = null;     // postKey the badge currently describes
   let analyzeTimer = null;
+  let warmTimer = null;
   let heartbeat = null;
 
   const DEBOUNCE_MS = 250;
   const SETTLE_MS = 300;   // wait this long after scrolling stops before analysing
+  // "Scan this reel" mode: if you stay on a reel this long, its data is
+  // fetched in the background (network only, no model runs) so that pressing
+  // Scan answers almost at once. A reel you flick past costs nothing.
+  const WARM_AFTER_MS = 2500;
 
   // --------------------------------------------------------------------- //
   // The badge element — created lazily, kept out of Instagram's DOM.
@@ -96,7 +101,7 @@ TL.observer = (function () {
   // --------------------------------------------------------------------- //
   // Update the badge to match what is in view.
   // --------------------------------------------------------------------- //
-  function update({ immediate = false } = {}) {
+  function update({ immediate = false, force = false } = {}) {
     if (!TL.settings.enabled) { removeBadge(); return; }
 
     const type = (() => { try { return TL.ig.pageType(); } catch (e) { return "?"; } })();
@@ -140,12 +145,27 @@ TL.observer = (function () {
     // so a slow answer for a reel you already swiped past can't be painted
     // over this one (see TL.analyzePost).
     el.dataset.tlKey = data.key;
-    if (!TL.settings.autoScan) return;
+    if (analyzeTimer) { clearTimeout(analyzeTimer); analyzeTimer = null; }
+    if (warmTimer) { clearTimeout(warmTimer); warmTimer = null; }
+
+    // "Scan this reel" mode (the default): nothing is checked until you ask.
+    // Only a reel you already scanned shows its result straight away.
+    if (!TL.settings.autoScan && !force) {
+      const done = TL.cache.get(data.key);
+      if (done && done.status === "done") {
+        TL.analyzePost(data, el, { transcribe: false });
+        return;
+      }
+      TL.ui.setIdle(el, () => TL.analyzePost(data, el, { transcribe: false }));
+      warmTimer = setTimeout(() => {
+        if (shownKey === data.key) TL.warmPost(data);
+      }, WARM_AFTER_MS);
+      return;
+    }
 
     // Analyse the post you SETTLE on, not every one that flies past mid-scroll.
     // otherwise the badge flickers through a dozen verdicts and fires a gateway
     // call for each. `immediate` is for the popup's "check now" button.
-    if (analyzeTimer) { clearTimeout(analyzeTimer); analyzeTimer = null; }
     const runAnalyze = () => {
       if (shownKey === data.key) TL.analyzePost(data, el, { transcribe: false });
     };
@@ -182,7 +202,7 @@ TL.observer = (function () {
   function scanNow({ force = false } = {}) {
     if (!TL.settings.enabled && !force) return;
     shownKey = null;                    // force a fresh look
-    update({ immediate: true });
+    update({ immediate: true, force: true });
   }
 
   function start() {

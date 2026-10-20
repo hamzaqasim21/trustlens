@@ -7,7 +7,7 @@ import './admin.css'
 
 const NAV = [
   { to: '/admin', label: 'Overview', end: true },
-  { to: '/admin/appeals', label: 'Score disputes', badge: 'pending' },
+  { to: '/admin/appeals', label: 'Score reports', badge: 'pending' },
   { to: '/admin/users', label: 'Users' },
   { to: '/admin/scans', label: 'Scans' },
   { to: '/admin/system', label: 'Models & system' },
@@ -24,7 +24,7 @@ function AdminLayout() {
 
   const isAdmin = user?.role === 'admin'
 
-  // The disputes badge refreshes whenever the admin moves between pages, so
+  // The reports badge refreshes whenever the admin moves between pages, so
   // deciding a case updates the count without a full reload.
   useEffect(() => {
     if (!isAdmin) return

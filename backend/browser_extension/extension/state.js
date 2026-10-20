@@ -18,8 +18,9 @@ TL.settings = {
   // Listen to a reel's audio once you've stopped on it (never while you're
   // swiping past). A short reel takes a few seconds; switch off in the popup.
   autoTranscribe: true,
-  // Analyse posts as they scroll into view.
-  autoScan: true,
+  // false (the default): each reel shows a "Scan this reel" button and is only
+  // checked when you press it. true: every reel you stop on is checked.
+  autoScan: false,
 };
 
 // postKey -> { status: "pending"|"done"|"error", verdict, explanation }

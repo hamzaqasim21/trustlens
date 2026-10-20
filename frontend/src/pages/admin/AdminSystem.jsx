@@ -126,22 +126,22 @@ function AdminSystem() {
       </div>
 
       <div className="adm-grid-2">
-        <Card eyebrow="REAL-WORLD SIGNAL" title="What disputes say about accuracy">
+        <Card eyebrow="REAL-WORLD SIGNAL" title="What reports say about accuracy">
           {fb && (
             <>
               <div className="adm-metrics">
                 <div className="adm-metric">
                   <span className="adm-metric-value">{fb.overturn_rate === null ? '—' : `${fb.overturn_rate}%`}</span>
-                  <span className="adm-metric-label">of decided disputes were upheld</span>
+                  <span className="adm-metric-label">of decided reports were upheld</span>
                 </div>
                 <div className="adm-metric">
                   <span className="adm-metric-value">{fb.disputes_resolved}</span>
-                  <span className="adm-metric-label">disputes decided</span>
+                  <span className="adm-metric-label">reports decided</span>
                 </div>
               </div>
               <p className="adm-card-text">
                 Test-set accuracy says how a model did on a benchmark. This says how the whole product did on real
-                cases a person looked at. It only counts disputed scans, so it isn't an overall error rate — but every
+                cases a person looked at. It only counts reported scans, so it isn't an overall error rate — but every
                 upheld case is a known mistake, attributed to the part that made it:
               </p>
               <table className="adm-table adm-table-compact">
@@ -164,13 +164,13 @@ function AdminSystem() {
 
         <Card eyebrow="FEEDBACK LOOP" title="Retraining dataset">
           <p className="adm-card-text">
-            The scope document says corrected scores should feed back into retraining. Every upheld dispute is
+            The scope document says corrected scores should feed back into retraining. Every upheld report is
             stored with the original score, the corrected score and the part of the analysis that got it wrong.
             This exports them as a labelled CSV — the input a retraining run needs.
           </p>
           <p className="adm-card-text adm-muted">
             Retraining itself is a deliberate offline step. Nothing here changes a model automatically, so a bad
-            batch of disputes can never silently degrade the live system.
+            batch of reports can never silently degrade the live system.
           </p>
           <button className="adm-btn adm-btn-primary" onClick={exportCsv} disabled={exporting}>
             {exporting ? 'Preparing…' : `Download CSV${fb ? ` (${fb.disputes_upheld} ${fb.disputes_upheld === 1 ? 'case' : 'cases'})` : ''}`}

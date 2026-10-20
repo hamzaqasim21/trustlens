@@ -197,6 +197,9 @@ def clean_page_media(item: dict | None) -> dict | None:
         "is_video": bool(video_url) or bool(item.get("is_video")),
         "has_audio": bool(item.get("has_audio", bool(video_url))),
         "video_url": video_url,
+        # Audio-only track from Instagram's own streaming manifest, when the
+        # page had it: a fraction of the size of the video. Same host check.
+        "audio_url": _safe_video_url(str(item.get("audio_url") or "")),
         "like_count": _int(item.get("like_count")),
         "comment_count": _int(item.get("comment_count")),
         "source": "page",

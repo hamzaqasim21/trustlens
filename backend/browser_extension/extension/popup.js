@@ -28,7 +28,15 @@ async function refresh() {
     const modules = data.modules || {};
     for (const key of ["classifier", "account_model", "instagram_data", "transcriber"]) {
       const m = modules[key] || {};
-      setDot(key, !!m.up, m.up ? "up" : "down");
+      // Up but its model still loading (first start, or after a restart):
+      // say "loading", not a green "up" that would then fail.
+      if (m.up && m.loaded === false) {
+        setDot(key, true, "loading…");
+        const dot = document.getElementById("d-" + key);
+        if (dot) dot.className = "dot wait";
+      } else {
+        setDot(key, !!m.up, m.up ? "up" : "down");
+      }
     }
 
     setDot("gemini", !!data.gemini_configured,
@@ -61,7 +69,7 @@ async function loadSettings() {
   const { settings } = await chrome.storage.local.get("settings");
   const s = settings || {};
   document.getElementById("enabled").checked = s.enabled !== false;
-  document.getElementById("autoScan").checked = s.autoScan !== false;
+  document.getElementById("autoScan").checked = s.autoScan === true;
   document.getElementById("autoTranscribe").checked = s.autoTranscribe !== false;
 }
 

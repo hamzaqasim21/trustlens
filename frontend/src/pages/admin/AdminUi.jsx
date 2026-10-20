@@ -70,7 +70,7 @@ export function AppealStatusPill({ status }) {
 export function ScoreCell({ score, corrected }) {
   if (corrected !== null && corrected !== undefined) {
     return (
-      <span className="adm-score" title="Original model score, then the score after an upheld dispute">
+      <span className="adm-score" title="Original model score, then the score after an upheld report">
         <s className="adm-muted">{score}</s> <span className="adm-score-arrow">→</span> <strong>{corrected}</strong>
       </span>
     )

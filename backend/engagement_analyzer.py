@@ -20,7 +20,7 @@ def _smooth_score(ratio):
     return float(_CURVE[-1][1])
 
 
-def analyze_engagement(followers, likes_avg, comments_avg, posts, posts_analyzed=None):
+def analyze_engagement(followers, likes_avg, comments_avg, posts, posts_analyzed=None, comments_off=False):
 
     # ---- No posts came back: nothing was measured ----
     # Instagram sometimes returns no posts (a network hiccup, rate limiting,
@@ -63,7 +63,10 @@ def analyze_engagement(followers, likes_avg, comments_avg, posts, posts_analyzed
         tier = "Mega"
 
     # ---- Like to Comment Ratio ----
-    like_comment_ratio = likes_avg / (comments_avg + 1)
+    # Not computed when the creator has turned comments off: zero comments is
+    # then a privacy setting, and a huge likes-per-comment ratio would read as
+    # a bot signal that isn't there (found on a real scan, @raisa.creationz).
+    like_comment_ratio = None if comments_off else likes_avg / (comments_avg + 1)
 
     # ---- Engagement Score 0-100 (smooth) + a readable band ----
     ratio = engagement_rate / benchmark
@@ -81,7 +84,7 @@ def analyze_engagement(followers, likes_avg, comments_avg, posts, posts_analyzed
     # ---- Suspicious Pattern Detection ----
     flags = []
 
-    if like_comment_ratio > 500:
+    if like_comment_ratio is not None and like_comment_ratio > 500:
         flags.append("Extremely low comments relative to likes")
 
     if engagement_rate == 0 and followers > 1000:
@@ -90,7 +93,7 @@ def analyze_engagement(followers, likes_avg, comments_avg, posts, posts_analyzed
     if posts == 0:
         flags.append("No posts found")
 
-    if followers > 100000 and comments_avg < 5:
+    if followers > 100000 and comments_avg < 5 and not comments_off:
         flags.append("Large account with almost no comments")
 
     return {
@@ -100,7 +103,8 @@ def analyze_engagement(followers, likes_avg, comments_avg, posts, posts_analyzed
         "status":             status,
         "color":              color,
         "engagement_score":   engagement_score,
-        "like_comment_ratio": round(like_comment_ratio, 2),
+        "like_comment_ratio": round(like_comment_ratio, 2) if like_comment_ratio is not None else None,
+        "comments_off":       bool(comments_off),
         "flags":              flags,
         "total_flags":        len(flags),
         "measured":           True,

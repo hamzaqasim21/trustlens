@@ -1,0 +1,32 @@
+.rx-conf {
+  display: grid;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: 16px;
+  border: 2px solid var(--ink-line);
+  background: #FFFFFF;
+}
+.rx-conf-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.rx-conf-label { font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-soft); }
+.rx-conf-row > strong { font-size: 24px; font-weight: 800; letter-spacing: -0.02em; }
+.rx-conf-toggle {
+  margin-left: auto;
+  border: 0;
+  background: none;
+  font: 700 13.5px/1 var(--display);
+  color: var(--pink);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.rx-conf-warn { font-size: 13.5px; color: var(--bad-ink); font-weight: 600; }
+.rx-conf-detail { display: grid; gap: 8px; font-size: 13.5px; color: var(--ink-soft); line-height: 1.5; }
+.rx-conf-detail ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
+.rx-conf-detail strong { color: var(--ink); }
+.rx-conf-missing strong { color: var(--warn-ink); }
+.rx-review { margin: 0; }
+
+.rx-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.rx-actions-msg { font-size: 13.5px; color: var(--ink-soft); }
+
+.rx-visual-head { display: grid; gap: 14px; margin-bottom: 28px; max-width: 760px; }

@@ -22,7 +22,7 @@
   }
   .mod { display: flex; align-items: center; gap: 7px; padding: 3px 0; font-size: 12px; }
   .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: #94a3b8; }
-  .up { background: #16a34a; } .down { background: #dc2626; }
+  .up { background: #16a34a; } .down { background: #dc2626; } .wait { background: #ca8a04; }
   .name { flex: 1; }
   .hint { font-size: 11px; opacity: .65; margin-top: 6px; }
   label { display: flex; align-items: center; gap: 8px; padding: 4px 0; cursor: pointer; }
@@ -58,11 +58,11 @@
 
   <div class="card">
     <label><input type="checkbox" id="enabled"> Enabled</label>
-    <label><input type="checkbox" id="autoScan"> Check posts as I scroll</label>
-    <label><input type="checkbox" id="autoTranscribe"> Listen to a reel's audio when I stop on it</label>
-    <div class="hint">With the third box ticked, a reel's audio is listened to
-      automatically once you stop on it (a few seconds). Untick it to use the
-      <b>Listen to audio</b> button on each badge instead.</div>
+    <label><input type="checkbox" id="autoScan"> Check every reel automatically</label>
+    <label><input type="checkbox" id="autoTranscribe"> Include what's said in the reel (audio)</label>
+    <div class="hint">Leave the second box unticked and each reel shows a
+      <b>Scan this reel</b> button instead: only the reels you pick are checked,
+      which is faster and much lighter on your laptop.</div>
   </div>
 
   <button id="scan">Check what's on screen now</button>

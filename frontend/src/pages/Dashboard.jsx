@@ -3,13 +3,14 @@ import { Link, Navigate, useNavigate } from 'react-router-dom'
 import PageShell from '../components/site/PageShell'
 import Reveal from '../components/site/Reveal'
 import CountUp from '../components/CountUp'
-import { getScanHistory, getMyAppeals } from '../api/trustlens'
+import WatchlistPanel from '../components/WatchlistPanel'
+import { getScanHistory, getMyAppeals, downloadScansCsv } from '../api/trustlens'
 import { useAuth } from '../context/AuthContext'
 import { parseUsername, scanPath, USERNAME_HELP } from '../lib/scanFlow'
 import { formatDate, formatDateTime, toneFor } from '../lib/verdict'
 import './Dashboard.css'
 
-// After an upheld dispute, the corrected score is what TrustLens now says
+// After an upheld report, the corrected score is what TrustLens now says
 // about that account, so it's what the totals use. The original is still
 // shown (struck through) on the row, so nothing is hidden.
 function effective(scan) {
@@ -116,7 +117,7 @@ function Dashboard() {
           <div>
             <span className="tl-eyebrow">Your dashboard</span>
             <h1 className="tl-display db-title">Hi, <span className="tl-grad-text">{firstName}.</span></h1>
-            <p className="tl-lede">Every scan you’ve run, what it found, and where your disputes stand.</p>
+            <p className="tl-lede">Every scan you’ve run, what it found, and where your reports stand.</p>
           </div>
           <QuickScan />
         </div>
@@ -141,16 +142,24 @@ function Dashboard() {
             </Reveal>
             <Reveal className="db-stat tl-card" delay={280}>
               <span className="db-stat-value"><CountUp value={openDisputes} /></span>
-              <span className="db-stat-label">Disputes under review</span>
+              <span className="db-stat-label">Reports under review</span>
             </Reveal>
           </div>
         </div>
       </section>
 
+      <WatchlistPanel />
+
       <section className="tl-band tl-band-tint db-history">
         <div className="tl-wrap">
           <div className="db-toolbar">
             <h2 className="tl-display db-sec-title">Scan history</h2>
+            {scans.length > 0 && (
+              <button type="button" className="tl-btn tl-btn-outline tl-btn-sm db-history-export"
+                onClick={() => downloadScansCsv().catch((err) => setError(err.message))}>
+                Export all as CSV
+              </button>
+            )}
             <div className="db-controls">
               <div className="db-filters" role="group" aria-label="Filter by verdict">
                 {FILTERS.map(([key, label]) => (
@@ -182,7 +191,7 @@ function Dashboard() {
           {!loading && !error && total === 0 && (
             <div className="tl-empty">
               <h3>No scans yet</h3>
-              <p>Scan any public Instagram account and the result lands here, so you can reopen it or dispute it later.</p>
+              <p>Scan any public Instagram account and the result lands here, so you can reopen it or report it later.</p>
               <Link to="/scan" className="tl-btn tl-btn-grad">Run your first scan</Link>
             </div>
           )}
@@ -211,12 +220,12 @@ function Dashboard() {
                       </span>
                       <span className="db-row-when tl-mono">{formatDate(scan.scanned_at)}</span>
                       <span className="db-row-flags">
-                        {appeal && <span className={`tl-chip tl-chip-${appeal[1]}`}>Disputed · {appeal[0]}</span>}
+                        {appeal && <span className={`tl-chip tl-chip-${appeal[1]}`}>Reported · {appeal[0]}</span>}
                         {scan.misinformation_flag && <span className="tl-chip tl-chip-bad tl-chip-plain">Misinfo flagged</span>}
                       </span>
                       <span className={`tl-chip tl-chip-${tone}`}>{eff.verdict}</span>
                       <span className="db-row-score">
-                        {eff.corrected && <s className="tl-mono" title="Original score before your dispute was upheld">{scan.trust_score}</s>}
+                        {eff.corrected && <s className="tl-mono" title="Original score before your report was upheld">{scan.trust_score}</s>}
                         <span className="db-score-pill">{eff.score}</span>
                       </span>
                       <span className="db-row-go" aria-hidden="true">→</span>
@@ -232,7 +241,7 @@ function Dashboard() {
       {!loading && !error && appeals.length > 0 && (
         <section className="tl-band db-disputes">
           <div className="tl-wrap">
-            <span className="tl-eyebrow">Disputes</span>
+            <span className="tl-eyebrow">Reports</span>
             <h2 className="tl-display db-sec-title">What the<br />reviewers said.</h2>
             <div className="db-dispute-grid">
               {appeals.map((a) => {

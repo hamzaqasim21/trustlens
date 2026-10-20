@@ -23,9 +23,13 @@ async function parseErrorMessage(response) {
 
 // Errors carry the HTTP status, so a page can tell "your session ran out"
 // (401, send them to log in) apart from "Instagram didn't answer" (retry).
-function httpError(message, status) {
+// `kind` (when the backend sends one) further tells "this username doesn't
+// exist" (not_found) apart from "Instagram was slow" (network), so the UI
+// doesn't have to guess from a message's wording.
+function httpError(message, status, kind) {
   const err = new Error(message)
   err.status = status
+  if (kind) err.kind = kind
   return err
 }
 
@@ -48,7 +52,7 @@ export async function analyzeProfile(username) {
   const data = await response.json()
 
   if (data.error) {
-    throw httpError(data.error, 200)
+    throw httpError(data.error, 200, data.kind)
   }
 
   return data
@@ -264,4 +268,67 @@ export async function getCurrentUser(token) {
   }
 
   return response.json()
+}
+
+// ------------------------------------------------------------------------- //
+// Added 2026-09-28: the rest of the Web Dashboard (watchlist, brand, creator),
+// Visual Analytics, and PDF/CSV export.
+// ------------------------------------------------------------------------- //
+async function jsonCall(path, { method = 'GET', body } = {}) {
+  let response
+  try {
+    response = await fetch(`${API_BASE}${path}`, {
+      method,
+      headers: { ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}), ...authHeaders() },
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    })
+  } catch {
+    throw httpError("Can't reach the TrustLens server. Make sure the backend is running, then try again.", 0)
+  }
+  if (!response.ok) throw httpError(await parseErrorMessage(response), response.status)
+  return response.json()
+}
+
+// A plain link can't carry the login header, so files are fetched with it
+// and handed to the browser as a download.
+async function downloadFile(path, fallbackName, { method = 'GET', body } = {}) {
+  let response
+  try {
+    response = await fetch(`${API_BASE}${path}`, {
+      method,
+      headers: { ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}), ...authHeaders() },
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    })
+  } catch {
+    throw httpError("Can't reach the TrustLens server.", 0)
+  }
+  if (!response.ok) throw httpError(await parseErrorMessage(response), response.status)
+  const disposition = response.headers.get('content-disposition') || ''
+  const match = disposition.match(/filename="([^"]+)"/)
+  const blob = await response.blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = match ? match[1] : fallbackName
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
+}
+
+// Reports and exports
+export const downloadScanPdf = (scanId) => downloadFile(`/reports/scan/${scanId}.pdf`, `trustlens_report_${scanId}.pdf`)
+export const downloadComparePdf = (scanIds) =>
+  downloadFile('/reports/compare.pdf', 'trustlens_comparison.pdf', { method: 'POST', body: { scan_ids: scanIds } })
+export const downloadScansCsv = (scanIds = []) =>
+  downloadFile(`/exports/scans.csv${scanIds.length ? `?ids=${scanIds.join(',')}` : ''}`, 'trustlens_scans.csv')
+
+// Watchlist and alerts
+export const watchlistApi = {
+  list: () => jsonCall('/watchlist'),
+  add: (username) => jsonCall('/watchlist', { method: 'POST', body: { username } }),
+  remove: (id) => jsonCall(`/watchlist/${id}`, { method: 'DELETE' }),
+  recheck: (id) => jsonCall(`/watchlist/${id}/recheck`, { method: 'POST' }),
+  alerts: () => jsonCall('/alerts'),
+  markAlertsRead: () => jsonCall('/alerts/read', { method: 'POST' }),
 }

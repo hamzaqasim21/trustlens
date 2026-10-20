@@ -155,7 +155,7 @@ function DangerCard({ user }) {
         <h2>Delete account</h2>
       </div>
       <p className="st-muted">
-        Permanently deletes your account, every scan on it, and any disputes you’ve filed. This can’t be undone.
+        Permanently deletes your account, every scan on it, and any reports you’ve filed. This can’t be undone.
       </p>
       {isAdmin && (
         <p className="tl-alert tl-alert-warn">
@@ -208,7 +208,7 @@ function Settings() {
           <span className="tl-eyebrow">Account</span>
           <h1 className="tl-display tl-pagehead-title">Settings.</h1>
           <p className="tl-lede tl-pagehead-lede">
-            Signed in as <strong>{user.email}</strong>. Your scans and disputes are on your <Link to="/dashboard" className="tl-link">dashboard</Link>.
+            Signed in as <strong>{user.email}</strong>. Your scans and reports are on your <Link to="/dashboard" className="tl-link">dashboard</Link>.
           </p>
         </div>
       </section>

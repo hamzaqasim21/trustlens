@@ -3,6 +3,7 @@
 # Fetches real Instagram profile data using RapidAPI
 # ============================================================
 
+import re
 import requests
 import os
 from dotenv import load_dotenv
@@ -15,6 +16,37 @@ RAPIDAPI_KEY = os.getenv("RAPIDAPI_KEY")
 RAPIDAPI_KEY_COMMENTS = os.getenv("RAPIDAPI_KEY_COMMENTS")
 RAPIDAPI_HOST = "instagram-scraper-stable-api.p.rapidapi.com"
 RAPIDAPI_URL = f"https://{RAPIDAPI_HOST}/ig_get_fb_profile_v3.php"
+
+
+class ProfileNotFoundError(Exception):
+    """The username itself is the problem (typo'd, deleted, never existed) —
+    not a network hiccup. Kept as its own type, not just a string, so the
+    frontend can show "check the spelling" instead of "try again" without
+    fragile matching on the exact wording of a message."""
+    pass
+
+
+def _post_with_retry(url, headers, payload, timeout, label):
+    """One retry on a timeout/connection error before giving up.
+
+    This network stalls occasionally (documented repeatedly in this project)
+    and a lone retry clears most of those — RapidAPI's own dashboard confirms
+    a failed request due to a stall isn't billed, so a retry costs nothing.
+    A real "this account doesn't exist" response comes back fast and clean,
+    so it is never retried here — only network-level failures are.
+    """
+    last_exc = None
+    for attempt in range(2):
+        try:
+            return requests.post(url, headers=headers, data=payload, timeout=timeout)
+        except requests.exceptions.Timeout as e:
+            last_exc = e
+        except requests.exceptions.RequestException as e:
+            raise Exception(f"Could not reach {label}: {e}")
+    raise TimeoutError(
+        f"{label} took too long to respond, twice in a row (over {timeout}s each time). "
+        f"This is a temporary network issue, not a problem with the username — please try again shortly."
+    )
 
 
 def fetch_instagram_profile(username: str) -> dict:
@@ -33,12 +65,7 @@ def fetch_instagram_profile(username: str) -> dict:
         "username_or_url": username
     }
 
-    try:
-        response = requests.post(RAPIDAPI_URL, headers=headers, data=payload, timeout=20)
-    except requests.exceptions.Timeout:
-        raise Exception("Instagram API took too long to respond (over 20s). Try again — this is usually a temporary network hiccup, not a broken account.")
-    except requests.exceptions.RequestException as e:
-        raise Exception(f"Could not reach Instagram API: {e}")
+    response = _post_with_retry(RAPIDAPI_URL, headers, payload, 20, "Instagram")
 
     if response.status_code != 200:
         raise Exception(f"Instagram API failed with status {response.status_code}")
@@ -51,7 +78,16 @@ def fetch_instagram_profile(username: str) -> dict:
     # then scored as a certain bot. Refuse it instead of inventing data.
     if not isinstance(data, dict) or data.get("error") or "follower_count" not in data:
         reason = data.get("error") if isinstance(data, dict) else None
-        raise Exception(reason or f"No Instagram profile found for '{username}'.")
+        # RapidAPI's own wording for a bad username always mentions "invalid"
+        # or "exist". Anything else in that field (quota, a malformed request)
+        # is a real backend problem, not a bad username — don't tell the user
+        # their spelling is wrong when it might not be.
+        if reason is None or re.search(r"invalid|exist", reason, re.I):
+            raise ProfileNotFoundError(
+                f"There's no public Instagram account called '{username}'. Check the spelling — "
+                f"private accounts and typos both come back this way."
+            )
+        raise Exception(f"Instagram API error: {reason}")
 
     profile_data = {
         "username":          data.get("username", username),
@@ -90,12 +126,7 @@ def fetch_engagement_data(username: str, amount: int = 12) -> dict:
         "amount": amount
     }
 
-    try:
-        response = requests.post(POSTS_URL, headers=headers, data=payload, timeout=20)
-    except requests.exceptions.Timeout:
-        raise Exception("Instagram posts API took too long to respond (over 20s). Try again — usually a temporary network hiccup.")
-    except requests.exceptions.RequestException as e:
-        raise Exception(f"Could not reach Instagram posts API: {e}")
+    response = _post_with_retry(POSTS_URL, headers, payload, 20, "Instagram posts API")
 
     if response.status_code != 200:
         raise Exception(f"Posts fetch failed with status {response.status_code}")
@@ -107,14 +138,28 @@ def fetch_engagement_data(username: str, amount: int = 12) -> dict:
     comments = []
     post_codes = []
     post_captions = []
+    # One entry per post, for the engagement trend chart (Visual Analytics).
+    # Same numbers the averages below are built from, just not averaged.
+    posts = []
 
     for edge in edges:
         node = edge.get("node", edge)
-        likes.append(node.get("like_count", 0) or 0)
-        comments.append(node.get("comment_count", 0) or 0)
+        like_n = node.get("like_count", 0) or 0
+        comment_n = node.get("comment_count", 0) or 0
+        likes.append(like_n)
+        comments.append(comment_n)
         code = node.get("code")
         if code:
             post_codes.append(code)
+        taken_at = node.get("taken_at") or node.get("taken_at_timestamp")
+        posts.append({
+            "code": code,
+            "likes": like_n,
+            "comments": comment_n,
+            "comments_off": bool(node.get("comments_disabled") or node.get("commenting_disabled_for_viewer")),
+            "taken_at": int(taken_at) if isinstance(taken_at, (int, float)) else None,
+            "is_video": bool(node.get("is_video") or node.get("media_type") == 2),
+        })
 
         caption_obj = node.get("caption")
         caption_text = (caption_obj or {}).get("text", "") if caption_obj else ""
@@ -124,12 +169,21 @@ def fetch_engagement_data(username: str, amount: int = 12) -> dict:
     avg_likes = sum(likes) / len(likes) if likes else 0
     avg_comments = sum(comments) / len(comments) if comments else 0
 
+    # Comments turned off or restricted by the creator. Instagram then reports
+    # comment_count 0 on every post, which is a setting, not "nobody comments".
+    # Only concluded when EVERY post shows 0 comments AND most of them carry
+    # Instagram's own comments-disabled marker; otherwise zero is a real zero.
+    off = sum(1 for p in posts if p["comments_off"])
+    comments_off = bool(posts) and not any(comments) and off >= len(posts) / 2
+
     return {
         "avg_likes": round(avg_likes, 1),
         "avg_comments": round(avg_comments, 1),
         "posts_analyzed": len(likes),
         "post_codes": post_codes,
-        "post_captions": post_captions
+        "post_captions": post_captions,
+        "posts": posts,
+        "comments_off": comments_off,
     }
 
 

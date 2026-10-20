@@ -3,118 +3,129 @@ import { Link, Navigate, useLocation } from 'react-router-dom'
 import PageShell from '../components/site/PageShell'
 import ScoreRing from '../components/site/ScoreRing'
 import Reveal from '../components/site/Reveal'
-import { analyzeProfile } from '../api/trustlens'
+import { analyzeProfile, downloadComparePdf, downloadScansCsv } from '../api/trustlens'
 import { useAuth } from '../context/AuthContext'
 import { parseUsername, USERNAME_HELP } from '../lib/scanFlow'
 import { toneFor } from '../lib/verdict'
+import { SERIES_COLORS } from '../lib/charting'
 import './Comparison.css'
 
-function summarySentence(resultA, resultB) {
-  const a = resultA.trust_score.trust_score
-  const b = resultB.trust_score.trust_score
-  const diff = Math.abs(a - b)
+// Influencer Comparison Engine (scope §6.10): "two or more public influencer
+// usernames ... side-by-side comparison across all forensic metrics ...
+// Trust Score, bot percentage, misinformation flag count, engagement
+// authenticity rating, and credential confidence score ... structured table
+// ... and can be exported as a PDF report."
+// Up to four, so the table stays readable.
+const MAX = 4
 
-  if (diff < 5) {
-    return `Both profiles score about the same (${a} vs ${b}). Neither stands out as clearly more trustworthy.`
+const scoreOf = (r) => r.trust_score.trust_score
+
+function summarySentence(results) {
+  const ranked = [...results].sort((a, b) => scoreOf(b) - scoreOf(a))
+  const [best, next] = ranked
+  const lead = Math.round((scoreOf(best) - scoreOf(next)) * 10) / 10
+  if (lead < 5) {
+    return results.length === 2
+      ? `Both profiles score about the same (${scoreOf(results[0])} vs ${scoreOf(results[1])}). Neither stands out as clearly more trustworthy.`
+      : `The top two, @${best.username} and @${next.username}, are within 5 points (${scoreOf(best)} vs ${scoreOf(next)}). Look at the rows below before choosing.`
   }
-  const higher = a > b ? resultA.username : resultB.username
-  const lower = a > b ? resultB.username : resultA.username
-  return `@${higher} scores notably higher than @${lower} (${Math.max(a, b)} vs ${Math.min(a, b)}).`
+  return `@${best.username} scores highest (${scoreOf(best)}), ${lead} points ahead of @${next.username}.`
 }
 
-function engagementText(eng) {
-  return eng.engagement_score === null || eng.engagement_score === undefined ? 'Not measured' : `${eng.engagement_rate}%`
+const misinfoTexts = (r) => (r.misinformation_sources || []).filter((s) => s.status === 'success')
+const misinfoFlagCount = (r) => misinfoTexts(r).filter((s) => s.misinformation_flag).length
+
+function engagementRating(r) {
+  const e = r.engagement_analysis
+  if (e.engagement_score === null || e.engagement_score === undefined) return 'Not measured'
+  return `${e.status} · ${e.engagement_rate}% (normal ${e.benchmark}%)`
 }
 
-function ProfileCard({ result, winner }) {
+function credentialText(r) {
+  const c = r.credential_analysis || {}
+  if (!c.claims_found?.length) return 'No claims'
+  if (c.confidence_score === null || c.confidence_score === undefined) return `${c.claims_found.join(', ')}: not checkable`
+  return `${c.confidence_score}/100 (${c.claims_found.join(', ')})`
+}
+
+// The rows of the comparison table. `num` is used to highlight the best value
+// (better: 'high' | 'low'); rows without it are shown without a winner.
+const ROWS = [
+  { group: 'Overall' },
+  { label: 'Trust Score', show: (r) => `${scoreOf(r)} / 100`, num: scoreOf, better: 'high' },
+  { label: 'Verdict', show: (r) => r.trust_score.verdict },
+  { group: 'The four checks' },
+  { label: 'Bot % (fake-account likelihood)', show: (r) => `${r.fake_follower_analysis.bot_percentage}%`,
+    num: (r) => r.fake_follower_analysis.bot_percentage, better: 'low' },
+  { label: 'Misinformation flags', show: (r) => `${misinfoFlagCount(r)} of ${misinfoTexts(r).length} texts`,
+    num: misinfoFlagCount, better: 'low' },
+  { label: 'Engagement authenticity', show: engagementRating,
+    num: (r) => r.engagement_analysis.engagement_score, better: 'high' },
+  { label: 'Comment authenticity', show: (r) => r.comment_authenticity?.verdict || 'n/a' },
+  { label: 'Credential confidence', show: credentialText },
+  { group: 'Profile' },
+  { label: 'Followers', show: (r) => r.raw_profile_data.followers.toLocaleString() },
+  { label: 'Posts', show: (r) => r.raw_profile_data.posts.toLocaleString() },
+  { label: 'Verified by Instagram', show: (r) => (r.is_verified ? 'Yes' : 'No') },
+]
+
+function winnerIndex(row, results) {
+  if (!row.num) return null
+  const vals = results.map((r) => row.num(r))
+  if (vals.some((v) => typeof v !== 'number')) return null
+  const best = row.better === 'high' ? Math.max(...vals) : Math.min(...vals)
+  const idx = vals.filter((v) => v === best).length === 1 ? vals.indexOf(best) : null
+  return idx
+}
+
+function ComparisonTable({ results }) {
+  return (
+    <div className="cmp-table-wrap tl-card">
+      <table className="cmp-table">
+        <thead>
+          <tr>
+            <th scope="col">Metric</th>
+            {results.map((r, i) => (
+              <th scope="col" key={r.username}>
+                <span className="cmp-swatch" style={{ background: SERIES_COLORS[i % 4] }} aria-hidden="true" />
+                @{r.username}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {ROWS.map((row) => row.group ? (
+            <tr key={row.group} className="cmp-table-group"><th colSpan={results.length + 1} scope="colgroup">{row.group}</th></tr>
+          ) : (
+            <tr key={row.label}>
+              <th scope="row">{row.label}</th>
+              {results.map((r, i) => {
+                const win = winnerIndex(row, results) === i
+                return <td key={r.username} className={win ? 'is-win' : ''}>{row.show(r)}{win && <span className="cmp-best"> best</span>}</td>
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+function ProfileCard({ result, winner, color }) {
   const tone = toneFor(result.trust_score.verdict)
   return (
     <div className={`cmp-card tl-card ${winner ? 'is-winner' : ''}`}>
-      {winner && <span className="cmp-winner tl-chip tl-chip-ink tl-chip-plain">Scores higher</span>}
+      {winner && <span className="cmp-winner tl-chip tl-chip-ink tl-chip-plain">Scores highest</span>}
       <div className="cmp-card-who">
-        <span className="tl-avatar" aria-hidden="true">{result.username.charAt(0).toUpperCase()}</span>
+        <span className="tl-avatar" style={{ background: color }} aria-hidden="true">{result.username.charAt(0).toUpperCase()}</span>
         <div>
           <strong>@{result.username}</strong>
           <span>{result.full_name || ' '}</span>
         </div>
       </div>
-      <ScoreRing score={result.trust_score.trust_score} tone={tone} size={200} />
+      <ScoreRing score={scoreOf(result)} tone={tone} size={170} />
       <span className={`tl-chip tl-chip-${tone}`}>{result.trust_score.verdict}</span>
-      <dl className="cmp-card-facts">
-        <div><dt>Followers</dt><dd>{result.raw_profile_data.followers.toLocaleString()}</dd></div>
-        <div><dt>Engagement</dt><dd>{engagementText(result.engagement_analysis)}</dd></div>
-        <div><dt>Likely genuine</dt><dd>{Math.round((100 - result.fake_follower_analysis.bot_percentage) * 10) / 10}%</dd></div>
-      </dl>
       <Link to={`/results?id=${result.scan_id ?? ''}`} state={{ result }} className="tl-btn tl-btn-outline tl-btn-sm">Open full result</Link>
-    </div>
-  )
-}
-
-// better: 'high' | 'low' | null — which side gets the highlight, if any.
-function Row({ label, a, b, better = null, rawA, rawB }) {
-  let win = null
-  if (better && typeof rawA === 'number' && typeof rawB === 'number' && rawA !== rawB) {
-    win = (better === 'high' ? rawA > rawB : rawA < rawB) ? 'a' : 'b'
-  }
-  return (
-    <div className="cmp-row">
-      <span className={`cmp-row-val ${win === 'a' ? 'is-win' : ''}`}>{a}</span>
-      <span className="cmp-row-label">{label}</span>
-      <span className={`cmp-row-val ${win === 'b' ? 'is-win' : ''}`}>{b}</span>
-    </div>
-  )
-}
-
-function HeadToHead({ resultA, resultB }) {
-  const pA = resultA.raw_profile_data
-  const pB = resultB.raw_profile_data
-  const ffA = resultA.fake_follower_analysis
-  const ffB = resultB.fake_follower_analysis
-  const engA = resultA.engagement_analysis
-  const engB = resultB.engagement_analysis
-  const miA = resultA.misinformation_analysis
-  const miB = resultB.misinformation_analysis
-  const misinfoText = (m) => (m?.status === 'success' ? (m.misinformation_flag ? 'Flagged' : 'Clear') : 'Not checked')
-
-  return (
-    <div className="cmp-h2h tl-card">
-      <div className="cmp-h2h-head">
-        <span>@{resultA.username}</span>
-        <span className="tl-mono">vs</span>
-        <span>@{resultB.username}</span>
-      </div>
-
-      <div className="cmp-group">Overall</div>
-      <Row label="Trust Score" a={resultA.trust_score.trust_score} b={resultB.trust_score.trust_score} better="high"
-        rawA={resultA.trust_score.trust_score} rawB={resultB.trust_score.trust_score} />
-      <Row label="Verdict" a={resultA.trust_score.verdict} b={resultB.trust_score.verdict} />
-
-      <div className="cmp-group">Profile</div>
-      <Row label="Followers" a={pA.followers.toLocaleString()} b={pB.followers.toLocaleString()} />
-      <Row label="Posts" a={pA.posts} b={pB.posts} />
-      <Row label="Private account" a={pA.is_private ? 'Yes' : 'No'} b={pB.is_private ? 'Yes' : 'No'} />
-
-      {/* The model judges each account itself from its own profile — it
-          does not inspect followers — so the section says so. */}
-      <div className="cmp-group">Account authenticity</div>
-      <Row label="Fake-account likelihood" a={`${ffA.bot_percentage}%`} b={`${ffB.bot_percentage}%`} better="low"
-        rawA={ffA.bot_percentage} rawB={ffB.bot_percentage} />
-      <Row label="Follower / following ratio" a={ffA.follower_follow_ratio} b={ffB.follower_follow_ratio} />
-      <Row label="Model’s call" a={ffA.prediction ? 'Looks fake' : 'Looks genuine'} b={ffB.prediction ? 'Looks fake' : 'Looks genuine'} />
-
-      <div className="cmp-group">Engagement</div>
-      <Row label="Engagement rate" a={engagementText(engA)} b={engagementText(engB)} />
-      <Row label="Engagement score" a={engA.engagement_score ?? 'n/a'} b={engB.engagement_score ?? 'n/a'} better="high"
-        rawA={engA.engagement_score} rawB={engB.engagement_score} />
-      <Row label="Normal for its size"
-        a={engA.benchmark === null || engA.benchmark === undefined ? 'n/a' : `${engA.benchmark}% (${engA.tier})`}
-        b={engB.benchmark === null || engB.benchmark === undefined ? 'n/a' : `${engB.benchmark}% (${engB.tier})`} />
-
-      <div className="cmp-group">Content</div>
-      <Row label="Misinformation" a={misinfoText(miA)} b={misinfoText(miB)} />
-      <Row label="Credential claims"
-        a={resultA.credential_analysis?.claims_found?.length ? resultA.credential_analysis.claims_found.join(', ') : 'None'}
-        b={resultB.credential_analysis?.claims_found?.length ? resultB.credential_analysis.claims_found.join(', ') : 'None'} />
     </div>
   )
 }
@@ -122,12 +133,13 @@ function HeadToHead({ resultA, resultB }) {
 function Comparison() {
   const { user, loading: authLoading, signedOut } = useAuth()
   const location = useLocation()
-  const [inputA, setInputA] = useState(location.state?.a || '')
-  const [inputB, setInputB] = useState('')
+  const [inputs, setInputs] = useState([location.state?.a || '', ''])
   const [results, setResults] = useState(null)
+  const [failed, setFailed] = useState([])
   const [running, setRunning] = useState(false)
   const [error, setError] = useState('')
   const [elapsed, setElapsed] = useState(0)
+  const [exporting, setExporting] = useState('')
 
   useEffect(() => {
     if (!running) return
@@ -139,86 +151,92 @@ function Comparison() {
   if (authLoading) return null
   if (!user) return <Navigate to={signedOut ? '/' : '/login?next=/comparison'} replace />
 
+  function setInput(i, v) {
+    setInputs((arr) => arr.map((x, j) => (j === i ? v : x)))
+    setError('')
+  }
+
   async function handleCompare(e) {
     e.preventDefault()
-    const a = parseUsername(inputA)
-    const b = parseUsername(inputB)
-    if (!a || !b) {
-      setError(!inputA.trim() || !inputB.trim() ? 'Enter two usernames to compare.' : USERNAME_HELP)
-      return
-    }
-    if (a === b) {
-      setError('Those are the same account. Pick two different ones.')
-      return
-    }
+    const names = inputs.map((v) => v.trim()).filter(Boolean)
+    const parsed = names.map(parseUsername)
+    if (names.length < 2) { setError('Enter at least two usernames to compare.'); return }
+    if (parsed.some((p) => !p)) { setError(USERNAME_HELP); return }
+    if (new Set(parsed).size !== parsed.length) { setError('The same account is in the list twice. Pick different ones.'); return }
 
     setRunning(true)
     setElapsed(0)
     setError('')
     setResults(null)
-    try {
-      // Both are real scans (they're saved to your history too), run at once.
-      const [ra, rb] = await Promise.all([analyzeProfile(a), analyzeProfile(b)])
-      setResults([ra, rb])
-    } catch (err) {
-      setError(err.message || 'Something went wrong. Try again.')
-    } finally {
-      setRunning(false)
-    }
+    setFailed([])
+    // Every one is a real scan (saved to your history), all run at once. One
+    // failing (a typo) doesn't throw away the others.
+    const settled = await Promise.allSettled(parsed.map((u) => analyzeProfile(u)))
+    const ok = settled.filter((s) => s.status === 'fulfilled').map((s) => s.value)
+    const bad = settled.map((s, i) => (s.status === 'rejected' ? { username: parsed[i], message: s.reason?.message } : null)).filter(Boolean)
+    setFailed(bad)
+    if (ok.length >= 2) setResults(ok)
+    else setError(bad.length ? `Couldn’t compare: ${bad.map((b) => `@${b.username}: ${b.message}`).join(' · ')}` : 'Something went wrong. Try again.')
+    setRunning(false)
   }
 
-  function swap() {
-    setInputA(inputB)
-    setInputB(inputA)
-    if (results) setResults([results[1], results[0]])
+  async function exportPdf() {
+    setExporting('pdf')
+    try { await downloadComparePdf(results.map((r) => r.scan_id)) } catch (err) { setError(err.message) } finally { setExporting('') }
+  }
+  async function exportCsv() {
+    setExporting('csv')
+    try { await downloadScansCsv(results.map((r) => r.scan_id)) } catch (err) { setError(err.message) } finally { setExporting('') }
   }
 
-  const [ra, rb] = results || []
-  const diff = results ? ra.trust_score.trust_score - rb.trust_score.trust_score : 0
+  const top = results ? [...results].sort((a, b) => scoreOf(b) - scoreOf(a)) : []
+  const leaderLead = results ? scoreOf(top[0]) - scoreOf(top[1]) : 0
+  const canExport = results && results.every((r) => r.scan_id)
 
   return (
     <PageShell title="Compare" className="cmp-page">
       <section className="cmp-head">
         <div className="tl-pagehead-blob" aria-hidden="true" />
         <div className="tl-wrap cmp-head-inner">
-          <span className="tl-eyebrow">Compare two profiles</span>
+          <span className="tl-eyebrow">Compare up to {MAX} profiles</span>
           <h1 className="tl-display cmp-title">This<br /><span className="tl-grad-text">or that?</span></h1>
           <p className="tl-lede">
-            Choosing between two creators for a campaign, or just curious? Both go through the same checks, side by side.
-            Each one is a real scan and is saved to your dashboard.
+            Choosing between creators for a campaign? Every account goes through the same four checks, side by side,
+            with a PDF report you can share. Each one is a real scan, saved to your dashboard.
           </p>
 
-          <form className="cmp-form" onSubmit={handleCompare} noValidate>
-            <div className="tl-scanbar cmp-bar">
-              <span className="tl-scanbar-at" aria-hidden="true">@</span>
-              <input
-                aria-label="First Instagram username"
-                value={inputA}
-                onChange={(e) => { setInputA(e.target.value); setError('') }}
-                placeholder="first_username"
-                autoComplete="off"
-                spellCheck="false"
-                disabled={running}
-              />
+          <form className="cmp-form-multi" onSubmit={handleCompare} noValidate>
+            {inputs.map((v, i) => (
+              <div className="cmp-input-row" key={i}>
+                <span className="cmp-input-num" style={{ background: SERIES_COLORS[i % 4] }} aria-hidden="true">{i + 1}</span>
+                <div className="tl-scanbar cmp-bar">
+                  <span className="tl-scanbar-at" aria-hidden="true">@</span>
+                  <input
+                    aria-label={`Instagram username ${i + 1}`}
+                    value={v}
+                    onChange={(e) => setInput(i, e.target.value)}
+                    placeholder={i === 0 ? 'first_username' : i === 1 ? 'second_username' : 'another_username'}
+                    autoComplete="off"
+                    spellCheck="false"
+                    disabled={running}
+                  />
+                </div>
+                {inputs.length > 2 && (
+                  <button type="button" className="cmp-remove" onClick={() => setInputs((a) => a.filter((_, j) => j !== i))}
+                    disabled={running} aria-label={`Remove username ${i + 1}`}>Remove</button>
+                )}
+              </div>
+            ))}
+            <div className="cmp-form-actions">
+              {inputs.length < MAX && (
+                <button type="button" className="tl-btn tl-btn-soft" onClick={() => setInputs((a) => [...a, ''])} disabled={running}>
+                  + Add another account
+                </button>
+              )}
+              <button type="submit" className="tl-btn tl-btn-grad tl-btn-lg" disabled={running}>
+                {running ? 'Comparing…' : `Compare ${inputs.filter((x) => x.trim()).length || ''} accounts`}
+              </button>
             </div>
-            <button type="button" className="cmp-vs" onClick={swap} disabled={running} title="Swap sides" aria-label="Swap the two usernames">
-              VS
-            </button>
-            <div className="tl-scanbar cmp-bar">
-              <span className="tl-scanbar-at" aria-hidden="true">@</span>
-              <input
-                aria-label="Second Instagram username"
-                value={inputB}
-                onChange={(e) => { setInputB(e.target.value); setError('') }}
-                placeholder="second_username"
-                autoComplete="off"
-                spellCheck="false"
-                disabled={running}
-              />
-            </div>
-            <button type="submit" className="tl-btn tl-btn-grad tl-btn-lg cmp-go" disabled={running}>
-              {running ? 'Comparing…' : 'Compare'}
-            </button>
           </form>
           {error && <p className="tl-alert tl-alert-bad cmp-error" role="alert">{error}</p>}
         </div>
@@ -230,7 +248,7 @@ function Comparison() {
             <div className="cmp-running">
               <span className="tl-spinner" aria-hidden="true" />
               <div>
-                <strong>Scanning both profiles</strong>
+                <strong>Scanning {inputs.filter((x) => x.trim()).length} profiles at once</strong>
                 <span className="tl-mono">{elapsed}s elapsed</span>
               </div>
             </div>
@@ -238,22 +256,41 @@ function Comparison() {
 
           {!running && !results && (
             <div className="tl-empty">
-              <h3>Two usernames, one answer</h3>
-              <p>Enter both above. Tap VS to swap them round.</p>
+              <h3>Two to four usernames, one answer</h3>
+              <p>Enter them above. Add a third or fourth with “Add another account”.</p>
             </div>
           )}
 
           {!running && results && (
             <>
+              {failed.length > 0 && (
+                <p className="tl-alert tl-alert-warn cmp-failed">
+                  <span>Left out: {failed.map((f) => `@${f.username} (${f.message})`).join(' · ')}</span>
+                </p>
+              )}
               <Reveal>
-                <p className="cmp-summary">{summarySentence(ra, rb)}</p>
+                <div className="cmp-top">
+                  <p className="cmp-summary">{summarySentence(results)}</p>
+                  {canExport && (
+                    <div className="cmp-exports">
+                      <button className="tl-btn tl-btn-ink" onClick={exportPdf} disabled={Boolean(exporting)}>
+                        {exporting === 'pdf' ? 'Preparing PDF…' : 'Download PDF report'}
+                      </button>
+                      <button className="tl-btn tl-btn-outline" onClick={exportCsv} disabled={Boolean(exporting)}>
+                        {exporting === 'csv' ? 'Preparing CSV…' : 'Export CSV'}
+                      </button>
+                    </div>
+                  )}
+                </div>
               </Reveal>
-              <div className="cmp-grid">
-                <Reveal delay={0}><ProfileCard result={ra} winner={diff >= 5} /></Reveal>
-                <div className="cmp-mid" aria-hidden="true">VS</div>
-                <Reveal delay={120}><ProfileCard result={rb} winner={diff <= -5} /></Reveal>
+              <div className={`cmp-cards cmp-cards-${results.length}`}>
+                {results.map((r, i) => (
+                  <Reveal key={r.username} delay={i * 90}>
+                    <ProfileCard result={r} color={SERIES_COLORS[i % 4]} winner={leaderLead >= 5 && r === top[0]} />
+                  </Reveal>
+                ))}
               </div>
-              <Reveal><HeadToHead resultA={ra} resultB={rb} /></Reveal>
+              <Reveal><ComparisonTable results={results} /></Reveal>
             </>
           )}
         </div>

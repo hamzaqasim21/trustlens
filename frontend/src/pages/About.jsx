@@ -19,7 +19,7 @@ const STEPS = [
   },
   {
     n: '04', tag: 'Explain', swatch: 'ab-sw-orange', title: 'Every number, explained',
-    body: 'Not just a score: a plain-English reason for each check, the raw numbers behind it, and a way to dispute it if you think it’s wrong.',
+    body: 'Not just a score: a plain-English reason for each check, the raw numbers behind it, and a way to report it if you think it’s wrong.',
   },
 ]
 
@@ -51,7 +51,7 @@ function About() {
       <div className="tl-marquee-band" aria-hidden="true">
         <div className="tl-marquee">
           {[0, 1].flatMap((k) =>
-            ['Fetch', 'Check', 'Weigh', 'Explain', 'Dispute', 'Correct'].map((w) => <span key={`${k}-${w}`}>{w}</span>),
+            ['Fetch', 'Check', 'Weigh', 'Explain', 'Report', 'Correct'].map((w) => <span key={`${k}-${w}`}>{w}</span>),
           )}
         </div>
       </div>
@@ -115,7 +115,7 @@ function About() {
             </div>
             <div>
               <span className="ab-stat-value tl-grad-text">48h</span>
-              <span className="ab-stat-label">For a person to review any score you dispute</span>
+              <span className="ab-stat-label">For a person to review any score you report</span>
             </div>
           </div>
         </div>

@@ -107,16 +107,15 @@ function AdminUsers() {
                   <th className="adm-num">Scans</th>
                   <th>Joined</th>
                   <th>Last login</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
                 {data.items.map((u) => (
-                  <tr key={u.id} className="adm-row-link">
+                  <tr key={u.id}>
                     <td>
-                      <Link to={`/admin/users/${u.id}`} className="adm-row-anchor">
-                        <span className="adm-cell-strong">{u.full_name}</span>
-                        <span className="adm-cell-sub">{u.email}</span>
-                      </Link>
+                      <span className="adm-cell-strong">{u.full_name}</span>
+                      <span className="adm-cell-sub">{u.email}</span>
                     </td>
                     <td><AccountStatus user={u} /></td>
                     <td>{u.role === 'admin' ? <Pill tone="blue">Admin</Pill> : <span className="adm-muted">User</span>}</td>
@@ -126,6 +125,9 @@ function AdminUsers() {
                       {u.last_login_at
                         ? timeAgo(u.last_login_at)
                         : <span className="adm-muted" title="Login times are recorded from when the admin console was added, so earlier logins don't appear.">Not recorded</span>}
+                    </td>
+                    <td className="adm-num">
+                      <Link to={`/admin/users/${u.id}`} className="adm-btn adm-btn-ghost adm-btn-sm">View details</Link>
                     </td>
                   </tr>
                 ))}

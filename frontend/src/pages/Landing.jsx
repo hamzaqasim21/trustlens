@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import CountUp from '../components/CountUp'
 import SiteNav from '../components/site/SiteNav'
 import SiteFooter from '../components/site/SiteFooter'
+import Reveal from '../components/site/Reveal'
 import { parseUsername, savePendingScan, scanPath, USERNAME_HELP } from '../lib/scanFlow'
 
 // Real verdict thresholds, unchanged from the previous design — these are
@@ -226,14 +227,14 @@ function Landing() {
           <span>Fake credentials <svg viewBox="0 0 22 22" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="#FFFFFF" strokeWidth="3.5"/></svg></span>
           <span>English + Urdu <svg viewBox="0 0 22 22" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="#FFFFFF" strokeWidth="3.5"/></svg></span>
           <span>Chrome extension <svg viewBox="0 0 22 22" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="#FFFFFF" strokeWidth="3.5"/></svg></span>
-          <span>Score disputes <svg viewBox="0 0 22 22" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="#FFFFFF" strokeWidth="3.5"/></svg></span>
+          <span>Score reports <svg viewBox="0 0 22 22" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="#FFFFFF" strokeWidth="3.5"/></svg></span>
           <span aria-hidden="true">Fake accounts <svg viewBox="0 0 22 22"><circle cx="11" cy="11" r="7" fill="none" stroke="#FFFFFF" strokeWidth="3.5"/></svg></span>
           <span aria-hidden="true">Bought engagement <svg viewBox="0 0 22 22"><circle cx="11" cy="11" r="7" fill="none" stroke="#FFFFFF" strokeWidth="3.5"/></svg></span>
           <span aria-hidden="true">Scam captions <svg viewBox="0 0 22 22"><circle cx="11" cy="11" r="7" fill="none" stroke="#FFFFFF" strokeWidth="3.5"/></svg></span>
           <span aria-hidden="true">Fake credentials <svg viewBox="0 0 22 22"><circle cx="11" cy="11" r="7" fill="none" stroke="#FFFFFF" strokeWidth="3.5"/></svg></span>
           <span aria-hidden="true">English + Urdu <svg viewBox="0 0 22 22"><circle cx="11" cy="11" r="7" fill="none" stroke="#FFFFFF" strokeWidth="3.5"/></svg></span>
           <span aria-hidden="true">Chrome extension <svg viewBox="0 0 22 22"><circle cx="11" cy="11" r="7" fill="none" stroke="#FFFFFF" strokeWidth="3.5"/></svg></span>
-          <span aria-hidden="true">Score disputes <svg viewBox="0 0 22 22"><circle cx="11" cy="11" r="7" fill="none" stroke="#FFFFFF" strokeWidth="3.5"/></svg></span>
+          <span aria-hidden="true">Score reports <svg viewBox="0 0 22 22"><circle cx="11" cy="11" r="7" fill="none" stroke="#FFFFFF" strokeWidth="3.5"/></svg></span>
         </div>
       </div>
 
@@ -262,7 +263,7 @@ function Landing() {
               </svg>
             </div>
 
-            <div className="ig-about-side">
+            <Reveal className="ig-about-side">
               <div className="ig-row">
                 <span className="ig-ask">Who?</span>
                 <a className="ig-pill ig-pill-outline-dark" href="#how">Learn more</a>
@@ -270,9 +271,9 @@ function Landing() {
               <div className="ig-about-copy">
                 <p>We're not another follower counter. TrustLens is a final-year project from Air University Islamabad, built because Pakistan saw more than 13,000 online fraud complaints in 2024, many of them starting with a creator nobody had checked.</p>
                 <p>Fake doctors selling cures. "Advisors" promising guaranteed returns. Brands paying for followers who don't exist. Each scan runs four independent checks and shows the reasoning behind every number, so you can see <em>why</em> an account earns its score, not just the score.</p>
-                <p>And if a score looks wrong, you can dispute it. A person reviews every dispute within 48 hours.</p>
+                <p>And if a score looks wrong, you can report it. A person reviews every report within 48 hours.</p>
               </div>
-            </div>
+            </Reveal>
           </div>
         </section>
 
@@ -288,7 +289,7 @@ function Landing() {
             </div>
 
             <div className="ig-checks-grid">
-              <article className="ig-check">
+              <Reveal as="article" delay={0} className="ig-check">
                 <figure>
                   <svg viewBox="0 0 300 300" role="img" aria-label="Illustration: a profile with no photo, no posts and 4,200 following, stamped bot-like">
                     <rect width="300" height="300" fill="#E1306C"/>
@@ -314,9 +315,9 @@ function Landing() {
                 </figure>
                 <div className="ig-check-top"><h3>Fake accounts</h3><span className="ig-tag ig-tag-ai">AI MODEL</span></div>
                 <p>A trained Random Forest judges whether the account itself looks fake from its own profile: followers, following, posts, photo, bio and username.</p>
-              </article>
+              </Reveal>
 
-              <article className="ig-check">
+              <Reveal as="article" delay={80} className="ig-check">
                 <figure>
                   <svg viewBox="0 0 300 300" role="img" aria-label="Illustration: a post with an engagement rate of 0.35 percent circled">
                     <rect width="300" height="300" fill="#833AB4"/>
@@ -333,9 +334,9 @@ function Landing() {
                 </figure>
                 <div className="ig-check-top"><h3>Engagement</h3><span className="ig-tag ig-tag-rules">RULES</span></div>
                 <p>Likes and comments measured against what's normal for an account that size. Bought followers rarely engage, so the gap shows.</p>
-              </article>
+              </Reveal>
 
-              <article className="ig-check">
+              <Reveal as="article" delay={160} className="ig-check">
                 <figure>
                   <svg viewBox="0 0 300 300" role="img" aria-label="Illustration: a scam caption crossed out, and an ordinary ad marked as just an ad">
                     <rect width="300" height="300" fill="#F77737"/>
@@ -359,9 +360,9 @@ function Landing() {
                 </figure>
                 <div className="ig-check-top"><h3>Misinformation</h3><span className="ig-tag ig-tag-mix">AI + RULES</span></div>
                 <p>A fine-tuned language model reads the bio and recent captions in English and Urdu, cross-checked against concrete scam wording so ordinary ads aren't called scams.</p>
-              </article>
+              </Reveal>
 
-              <article className="ig-check">
+              <Reveal as="article" delay={240} className="ig-check">
                 <figure>
                   <svg viewBox="0 0 300 300" role="img" aria-label="Illustration: a bio claiming to be a doctor, stamped claim found, not verified">
                     <rect width="300" height="300" fill="url(#diamond)"/>
@@ -380,7 +381,7 @@ function Landing() {
                 </figure>
                 <div className="ig-check-top"><h3>Credentials</h3><span className="ig-tag ig-tag-rules">RULES</span></div>
                 <p>Finds claims like "Dr.", "MBBS" or "CFA" in the bio. A doctor claim is looked up in the PMDC and US NPI public registers; claims with no public register are shown but not scored.</p>
-              </article>
+              </Reveal>
             </div>
           </div>
         </section>
@@ -398,7 +399,7 @@ function Landing() {
             </div>
 
             <ol className="ig-steps">
-              <li className="ig-step">
+              <Reveal as="li" delay={0} className="ig-step">
                 <figure>
                   <svg viewBox="0 0 300 200" role="img" aria-label="Illustration: a search box containing an Instagram username">
                     <rect width="300" height="200" fill="#E1306C"/>
@@ -413,8 +414,8 @@ function Landing() {
                 <span className="ig-step-num">STEP 1</span>
                 <h3>Type a username</h3>
                 <p>Any public Instagram account. Nothing to install and no login needed to try it.</p>
-              </li>
-              <li className="ig-step">
+              </Reveal>
+              <Reveal as="li" delay={90} className="ig-step">
                 <figure>
                   <svg viewBox="0 0 300 200" role="img" aria-label="Illustration: profile, recent posts and captions arriving as cards">
                     <rect width="300" height="200" fill="#405DE6"/>
@@ -429,8 +430,8 @@ function Landing() {
                 <span className="ig-step-num">STEP 2</span>
                 <h3>Real data comes in</h3>
                 <p>The public profile, recent posts and captions are fetched live, nothing typed in by hand.</p>
-              </li>
-              <li className="ig-step">
+              </Reveal>
+              <Reveal as="li" delay={180} className="ig-step">
                 <figure>
                   <svg viewBox="0 0 300 200" role="img" aria-label="Illustration: four checks side by side">
                     <rect width="300" height="200" fill="#00D4AA"/>
@@ -449,8 +450,8 @@ function Landing() {
                 <span className="ig-step-num">STEP 3</span>
                 <h3>Four checks run</h3>
                 <p>Each check scores the account independently, and says so when it can't run, rather than filling in a number.</p>
-              </li>
-              <li className="ig-step">
+              </Reveal>
+              <Reveal as="li" delay={270} className="ig-step">
                 <figure>
                   <svg viewBox="0 0 300 200" role="img" aria-label="Illustration: the Trust Score scale from 0 to 100">
                     <rect width="300" height="200" fill="#F77737"/>
@@ -467,8 +468,8 @@ function Landing() {
                 </figure>
                 <span className="ig-step-num">STEP 4</span>
                 <h3>One Trust Score</h3>
-                <p>A score from 0 to 100 with a verdict, a one-line summary, and a full breakdown you can dispute if it looks wrong.</p>
-              </li>
+                <p>A score from 0 to 100 with a verdict, a one-line summary, and a full breakdown you can report if it looks wrong.</p>
+              </Reveal>
             </ol>
           </div>
         </section>
@@ -485,7 +486,7 @@ function Landing() {
             </div>
 
             <div className="ig-plans">
-              <article className="ig-plan ig-plan-featured">
+              <Reveal as="article" delay={0} className="ig-plan ig-plan-featured">
                 <div className="ig-plan-top"><span className="ig-plan-name">Everyone</span><span className="ig-plan-state ig-state-live">LIVE NOW</span></div>
                 <div className="ig-plan-price">
                   <div className="ig-price">Rs 0 <small>forever</small></div>
@@ -495,13 +496,13 @@ function Landing() {
                   <li><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="10" fill="#00D4AA"/><path d="M5.5 10 L8.6 13 L14.5 7" fill="none" stroke="#2B1140" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/></svg>Full four-check Trust Score</li>
                   <li><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="10" fill="#00D4AA"/><path d="M5.5 10 L8.6 13 L14.5 7" fill="none" stroke="#2B1140" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/></svg>Plain-English breakdown of every check</li>
                   <li><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="10" fill="#00D4AA"/><path d="M5.5 10 L8.6 13 L14.5 7" fill="none" stroke="#2B1140" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/></svg>Scan history on your dashboard</li>
-                  <li><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="10" fill="#00D4AA"/><path d="M5.5 10 L8.6 13 L14.5 7" fill="none" stroke="#2B1140" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/></svg>Dispute a score you disagree with</li>
+                  <li><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="10" fill="#00D4AA"/><path d="M5.5 10 L8.6 13 L14.5 7" fill="none" stroke="#2B1140" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/></svg>Report a score you disagree with</li>
                   <li><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="10" fill="#00D4AA"/><path d="M5.5 10 L8.6 13 L14.5 7" fill="none" stroke="#2B1140" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/></svg>Chrome extension for Instagram</li>
                 </ul>
                 <a className="ig-pill ig-pill-gradient" href="#scan">Start a scan</a>
-              </article>
+              </Reveal>
 
-              <article className="ig-plan">
+              <Reveal as="article" delay={90} className="ig-plan">
                 <div className="ig-plan-top"><span className="ig-plan-name">Creator</span><span className="ig-plan-state ig-state-soon">COMING SOON</span></div>
                 <div className="ig-plan-price">
                   <div className="ig-price">Rs 999 <small>/ month</small></div>
@@ -514,9 +515,9 @@ function Landing() {
                   <li><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="10" fill="#833AB4"/><path d="M5.5 10 L8.6 13 L14.5 7" fill="none" stroke="#FFFFFF" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/></svg>Tips to raise your score</li>
                 </ul>
                 <button className="ig-pill ig-pill-outline-dark" type="button" disabled>Coming soon</button>
-              </article>
+              </Reveal>
 
-              <article className="ig-plan">
+              <Reveal as="article" delay={180} className="ig-plan">
                 <div className="ig-plan-top"><span className="ig-plan-name">Brand &amp; Agency</span><span className="ig-plan-state ig-state-soon">COMING SOON</span></div>
                 <div className="ig-plan-price">
                   <div className="ig-price">Rs 4,999 <small>/ month</small></div>
@@ -529,7 +530,7 @@ function Landing() {
                   <li><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="10" fill="#833AB4"/><path d="M5.5 10 L8.6 13 L14.5 7" fill="none" stroke="#FFFFFF" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/></svg>API access for your own tools</li>
                 </ul>
                 <button className="ig-pill ig-pill-outline-dark" type="button" disabled>Coming soon</button>
-              </article>
+              </Reveal>
             </div>
             <p className="ig-pricing-note">Creator and Brand plans follow the user roles in the project scope. Prices shown are proposals for review.</p>
           </div>
@@ -543,38 +544,38 @@ function Landing() {
               <p>Straight answers about what TrustLens checks, what it doesn't, and where every number comes from.</p>
             </div>
             <div className="ig-faq-list">
-              <details open>
+              <Reveal as="details" delay={0} open>
                 <summary>Is TrustLens free?<span className="ig-plus" aria-hidden="true"></span></summary>
                 <p>Yes. Scanning any public Instagram account is free. Plans for creators and brands are planned, not live.</p>
-              </details>
-              <details>
+              </Reveal>
+              <Reveal as="details" delay={50}>
                 <summary>Where does the data come from?<span className="ig-plus" aria-hidden="true"></span></summary>
                 <p>From the public profile itself: follower counts, recent posts and captions, fetched live at the moment you scan. TrustLens never asks for anyone's login.</p>
-              </details>
-              <details>
+              </Reveal>
+              <Reveal as="details" delay={100}>
                 <summary>Does it check every one of an account's followers?<span className="ig-plus" aria-hidden="true"></span></summary>
                 <p>No, and we say so plainly. The live model judges the account's own profile. Instagram blocks bulk access to follower lists, so the follower-network clustering method runs on a labelled research dataset instead.</p>
-              </details>
-              <details>
+              </Reveal>
+              <Reveal as="details" delay={150}>
                 <summary>Is all of it AI?<span className="ig-plus" aria-hidden="true"></span></summary>
                 <p>Two checks are trained AI models: fake accounts and misinformation. Engagement and credentials are transparent rules, and the Trust Score is a published formula. Each one is labelled on your results page.</p>
-              </details>
-              <details>
+              </Reveal>
+              <Reveal as="details" delay={200}>
                 <summary>What if I think a score is wrong?<span className="ig-plus" aria-hidden="true"></span></summary>
-                <p>Dispute it from the results page. A reviewer decides within 48 hours, and the decision, with any corrected score, appears on your dashboard.</p>
-              </details>
-              <details>
+                <p>Report it from the results page. A reviewer decides within 48 hours, and the decision, with any corrected score, appears on your dashboard.</p>
+              </Reveal>
+              <Reveal as="details" delay={250}>
                 <summary>Does it understand Urdu?<span className="ig-plus" aria-hidden="true"></span></summary>
                 <p>Yes. The misinformation model was trained on English and Urdu text, including a category dedicated to Urdu misinformation.</p>
-              </details>
-              <details>
+              </Reveal>
+              <Reveal as="details" delay={300}>
                 <summary>Can it check private accounts?<span className="ig-plus" aria-hidden="true"></span></summary>
                 <p>No. TrustLens only analyses public accounts.</p>
-              </details>
-              <details>
+              </Reveal>
+              <Reveal as="details" delay={350}>
                 <summary>Is there a browser extension?<span className="ig-plus" aria-hidden="true"></span></summary>
                 <p>Yes. The Chrome extension adds a TrustLens badge to Instagram posts as you scroll, using the same models as this site.</p>
-              </details>
+              </Reveal>
             </div>
           </div>
         </section>

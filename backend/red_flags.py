@@ -45,6 +45,7 @@ FLAG_SEVERITY = {
     "health_claim": "high",
     "impossible_claim": "high",
     "link_risk": "high",
+    "prize_scam": "high",
     # Medium — pressure tactics. Common in scams, occasionally legitimate.
     "urgency": "medium",
     "engagement_bait": "medium",
@@ -61,6 +62,7 @@ FLAG_TITLE = {
     "health_claim": "Unproven health claim",
     "impossible_claim": "Mathematically impossible claim",
     "link_risk": "Risky or disguised link",
+    "prize_scam": "Fake prize or lottery win",
     "urgency": "Artificial urgency",
     "engagement_bait": "Engagement bait",
     "phone_number": "Contact number in caption",
@@ -116,6 +118,18 @@ _PATTERNS: dict[str, list[str]] = {
         r"https?://[^\s]*\.(?:tk|ml|ga|cf|gq)\b",
         # A bare IP address instead of a domain name.
         r"https?://\d{1,3}(?:\.\d{1,3}){3}\b",
+    ],
+    "prize_scam": [
+        # The unsolicited "you have won" message. Ordinary giveaway posts
+        # ("tag 2 friends to win", "@sara won our giveaway") are phrased
+        # differently and are deliberately not matched.
+        r"\byou(?:'ve|\s+have)\s+(?:just\s+)?(?:been\s+selected\s+(?:to\s+win|for)|won)\b.{0,30}?"
+        r"\b(?:free|prize|cash|iphone|lottery|jackpot|gift\s*card|voucher|reward|\$\s*\d|rs\.?\s*\d)",
+        # Premium-rate SMS: "text WIN to 80082".
+        r"\b(?:text|sms)\s+[\"']?[a-z]{2,10}[\"']?\s+to\s+\d{4,6}\b",
+        # Advance-fee: you must pay before the "prize" is released.
+        r"\bpay\s+(?:a\s+|the\s+)?(?:small\s+)?(?:fee|tax|charges?)\s+to\s+(?:claim|receive|release|collect)",
+        r"\b(?:lottery|jackpot)\s+winner\b",
     ],
     "urgency": [
         r"\b(?:act|buy|invest|join|sign\s*up)\s+now\b",

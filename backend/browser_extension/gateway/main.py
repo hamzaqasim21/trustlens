@@ -118,6 +118,12 @@ class PrefetchRequest(BaseModel):
     listen: bool = True
 
 
+class WarmRequest(BaseModel):
+    page_url: str = ""
+    username: str = ""
+    media: dict | None = None
+
+
 class ExplainRequest(BaseModel):
     """Send back the verdict object exactly as it was received."""
     verdict: dict
@@ -166,7 +172,13 @@ def _stage(page_url: str, text: str) -> None:
         _stages[page_url] = text
 
 
-def _start_listening(code: str, video_url: str, page_url: str,
+def _listen_urls(media: dict) -> list:
+    """What to listen to: the audio-only track when Instagram's page gave us
+    one (a fraction of the download), then the video file as a fallback."""
+    return [u for u in (media.get("audio_url"), media.get("video_url")) if u]
+
+
+def _start_listening(code: str, video_url, page_url: str,
                      on_screen: bool = True) -> asyncio.Task:
     job = _listen_jobs.get(code)
     if job is None:
@@ -178,7 +190,7 @@ def _start_listening(code: str, video_url: str, page_url: str,
     return job
 
 
-async def _listen_on_screen(code: str, video_url: str, page_url: str) -> dict:
+async def _listen_on_screen(code: str, video_url, page_url: str) -> dict:
     result = await _start_listening(code, video_url, page_url)
     err = result.get("error") or ""
     if not result.get("available") and ("skipped" in err or "in time" in err):
@@ -239,7 +251,7 @@ async def _analyze(req: AnalyzeRequest):
     if (is_reel and (req.listen or req.transcribe) and have_media
             and media.get("video_url") and media.get("has_audio")
             and reel_audio.cached(code) is None):
-        _start_listening(code, media["video_url"], req.page_url)
+        _start_listening(code, _listen_urls(media), req.page_url)
 
     # ---- 2. The account that posted it ---- #
     profile: dict = {"available": False}
@@ -280,10 +292,10 @@ async def _analyze(req: AnalyzeRequest):
         elif (req.transcribe or req.listen) and have_media and media.get("video_url"):
             if req.transcribe:
                 t0 = time.monotonic()
-                transcript = await _listen_on_screen(code, media["video_url"], req.page_url)
+                transcript = await _listen_on_screen(code, _listen_urls(media), req.page_url)
                 timings["listening"] = round(time.monotonic() - t0, 2)
             else:
-                _start_listening(code, media["video_url"], req.page_url)
+                _start_listening(code, _listen_urls(media), req.page_url)
                 transcript = {"available": False, "in_progress": True,
                               "error": "listening now"}
         elif req.transcribe:
@@ -318,15 +330,16 @@ async def _analyze(req: AnalyzeRequest):
 
     _stage(req.page_url, "Reading the caption…")
     t0 = time.monotonic()
-    # One combined read for the red-flag badge, plus each text on its own for
-    # the Trust Score — the website also judges a bio and each caption
-    # separately and keeps the riskiest.
+    # Each text is read on its own — exactly how the website judges a bio and
+    # each caption — and the red-flag badge is built from those same results.
+    # (It used to also send every text glued together as one more read: extra
+    # load on the model, and the model only reads ~384 words, so the glued
+    # version was cut short anyway.) The model runs one text at a time, so
+    # these go one after another rather than piling up at once.
     per_source = list(zip(sources, parts))
-    results = await asyncio.gather(
-        clients.classify_text(text_used),
-        *(clients.classify_text(t) for _, t in per_source))
-    classification = results[0]
-    texts_checked = [(src, t, r) for (src, t), r in zip(per_source, results[1:])]
+    results = [await clients.classify_text(t) for _, t in per_source]
+    texts_checked = [(src, t, r) for (src, t), r in zip(per_source, results)]
+    classification = _combine(results)
     timings["models"] = round(time.monotonic() - t0, 2)
     if account_task is not None:
         account = await account_task
@@ -382,6 +395,23 @@ async def _analyze(req: AnalyzeRequest):
     return verdict
 
 
+def _combine(results: list) -> dict:
+    """One classification for the red-flag badge, from the per-text results:
+    the riskiest text's category, and every red flag found in any of them."""
+    ok = [r for r in results if r.get("available")]
+    if not ok:
+        return results[0] if results else {"available": False, "error": "no text to classify"}
+    worst = max(ok, key=lambda r: r.get("post_risk_score") or 0)
+    flags, seen = [], set()
+    for r in ok:
+        for f in r.get("red_flags") or []:
+            key = (f.get("type"), f.get("detail"))
+            if key not in seen:
+                seen.add(key)
+                flags.append(f)
+    return {**worst, "red_flags": flags}
+
+
 def _apply_trust_score(verdict: dict, account: dict, profile: dict, eng: dict,
                        texts_checked: list, cred: dict | None = None) -> None:
     """Replace the badge's number with the website's Trust Score engine."""
@@ -435,7 +465,7 @@ def _apply_trust_score(verdict: dict, account: dict, profile: dict, eng: dict,
         verdict["account"]["engagement_status"] = eng_result["status"]
 
 
-async def _listen(code: str, video_url: str, page_url: str, on_screen: bool = True) -> dict:
+async def _listen(code: str, video_url, page_url: str, on_screen: bool = True) -> dict:
     clients.set_progress(page_url, state="running", percent=0, stage="Starting…", elapsed=0)
     t0 = time.monotonic()
 
@@ -448,6 +478,34 @@ async def _listen(code: str, video_url: str, page_url: str, on_screen: bool = Tr
                                        on_screen)
     finally:
         clients.clear_progress(page_url)
+
+
+@app.post("/warm")
+async def warm(req: WarmRequest):
+    """Get a reel ready to scan without scanning it: remember its data and
+    fetch its poster's profile and recent-post engagement. Network only — no
+    model runs, nothing is listened to. The extension calls this when you've
+    stayed on a reel for a couple of seconds, so if you then press "Scan this
+    reel" the answer is almost immediate. Returns at once."""
+    code = instagram_data.shortcode_from(req.page_url)
+    item = instagram_data.clean_page_media(req.media)
+    if item and item["code"] == code:
+        instagram_data.seed_media(item)
+
+    async def run():
+        author = (req.username or "").strip().lstrip("@")
+        if code:
+            media = await instagram_data.get_media(code)
+            if media.get("available"):
+                author = media.get("username") or author
+        if author:
+            await asyncio.gather(instagram_data.get_profile(author),
+                                 instagram_data.get_engagement(author))
+
+    task = asyncio.create_task(run())
+    _background.add(task)
+    task.add_done_callback(_background.discard)
+    return {"warming": code}
 
 
 @app.post("/prefetch")
@@ -468,7 +526,7 @@ async def prefetch(req: PrefetchRequest):
             task.add_done_callback(_background.discard)
         if (req.listen and item["video_url"] and item["has_audio"]
                 and reel_audio.cached(item["code"]) is None):
-            job = _start_listening(item["code"], item["video_url"],
+            job = _start_listening(item["code"], _listen_urls(item),
                                    f"https://www.instagram.com/reels/{item['code']}/",
                                    on_screen=False)
             # Once heard, run the models too, so arriving at this reel is instant.

@@ -20,9 +20,9 @@ function AdminAppeals() {
   return (
     <div className={loading && data ? 'adm-refreshing' : ''}>
       <PageHeader
-        eyebrow="SCORE DISPUTE REVIEW"
-        title="Score disputes"
-        subtitle="When someone thinks a Trust Score is wrong, they file a dispute from their results page. The scope document commits to reviewing every one within 48 hours."
+        eyebrow="SCORE REPORT REVIEW"
+        title="Score reports"
+        subtitle="When someone thinks a Trust Score is wrong, they file a report from their results page. The scope document commits to reviewing every one within 48 hours."
       />
 
       <div className="adm-tabs" role="tablist">
@@ -44,17 +44,17 @@ function AdminAppeals() {
       <Card>
         {!data && loading && <p className="adm-muted">Loading…</p>}
         {data && items.length === 0 && (
-          <EmptyState title={status === 'pending' ? 'Nothing waiting for review' : 'No disputes here yet'}>
+          <EmptyState title={status === 'pending' ? 'Nothing waiting for review' : 'No reports here yet'}>
             {status === 'pending'
-              ? 'New disputes appear here the moment a user files one from their results page.'
-              : 'Decided disputes are kept here permanently, with who decided and why.'}
+              ? 'New reports appear here the moment a user files one from their results page.'
+              : 'Decided reports are kept here permanently, with who decided and why.'}
           </EmptyState>
         )}
         {items.length > 0 && (
           <table className="adm-table">
             <thead>
               <tr>
-                <th>Account disputed</th>
+                <th>Account reported</th>
                 <th>Filed by</th>
                 <th className="adm-num">Original score</th>
                 <th>Status</th>

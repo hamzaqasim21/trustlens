@@ -38,9 +38,11 @@ _HERE = Path(__file__).resolve().parent
 MODELS_DIR = _HERE / "models"
 TMP_DIR = _HERE / ".tmp"
 MAX_DOWNLOAD_BYTES = 80 * 1024 * 1024
-# Scam pitches come early in a reel, and listening time grows with length, so
-# only the first minute is heard. The badge says so when a video is longer.
-MAX_AUDIO_SECONDS = float(os.getenv("WHISPER_MAX_SECONDS", "60"))
+# Scam pitches come early in a reel, and download + listening time grow with
+# length, so only the first 45 seconds are heard (was 60 — a friend's slower
+# connection spent over a minute just downloading). The badge says so when a
+# video is longer.
+MAX_AUDIO_SECONDS = float(os.getenv("WHISPER_MAX_SECONDS", "45"))
 
 _model = None
 _model_error: str | None = None
@@ -259,18 +261,88 @@ def _remove(path: str) -> None:
         pass
 
 
-def transcribe(code: str, video_url: str, progress, on_screen: bool = True) -> dict:
-    """Blocking. `progress(percent, stage)` is called as it goes. `on_screen`
-    is False for pre-checks of reels the viewer hasn't reached yet."""
+def _model_on_disk() -> bool:
+    return (MODELS_DIR / f"models--Systran--faster-whisper-{MODEL_SIZE}").exists()
+
+
+def _listen_once(url: str, code: str, on_screen: bool, progress, started: float) -> dict:
+    path = None
+    try:
+        path, video_seconds = _download(url, progress)
+        if _someone_else_waiting(code, on_screen):
+            raise _MovedOn()
+        if _model is None:
+            progress(8, "Listening…" if _model_on_disk() else
+                     "Getting the speech model ready (first run only, ~150 MB)…")
+        else:
+            progress(8, "Listening…")
+        model = _get_model()
+
+        segments, info = model.transcribe(
+            path,
+            beam_size=1,
+            vad_filter=True,               # skip music/silence instead of inventing words
+            condition_on_previous_text=False,
+            clip_timestamps=[0, MAX_AUDIO_SECONDS],
+        )
+        duration = min(float(info.duration or 0.0), MAX_AUDIO_SECONDS) or 1.0
+
+        kept: list[str] = []
+        logprobs: list[float] = []
+        for seg in segments:
+            if _someone_else_waiting(code, on_screen):
+                raise _MovedOn()
+            if seg.start > MAX_AUDIO_SECONDS:
+                break
+            # Whisper's classic failure on music: confidently "hearing"
+            # words that aren't there. Drop segments it itself doubts.
+            if seg.no_speech_prob > 0.6 and seg.avg_logprob < -0.8:
+                continue
+            text = seg.text.strip()
+            if text:
+                kept.append(text)
+                logprobs.append(seg.avg_logprob)
+            pct = 10 + int(88 * min(1.0, seg.end / duration))
+            progress(pct, f"Listening… {int(seg.end)}s / {int(duration)}s")
+
+        text = " ".join(kept).strip()
+        mean_lp = sum(logprobs) / len(logprobs) if logprobs else -9.0
+        lang_p = float(info.language_probability or 0.0)
+        reliable = bool(text) and lang_p >= 0.5 and mean_lp > -1.0
+        return {
+            "available": True,
+            "text": text,
+            "no_speech": not text,
+            "language": info.language,
+            "confidence": round(lang_p, 3),
+            "quality": "good" if reliable else ("none" if not text else "rough"),
+            "is_reliable": reliable,
+            "char_count": len(text),
+            "audio_seconds": round(float(info.duration or 0.0), 1),
+            "listened_seconds": round(min(float(info.duration or 0.0), MAX_AUDIO_SECONDS), 1),
+            "video_seconds": round(video_seconds, 1) if video_seconds else None,
+            "elapsed_seconds": round(time.monotonic() - started, 1),
+            "engine": f"whisper-{MODEL_SIZE}",
+        }
+    finally:
+        if path:
+            _remove(path)
+
+
+def transcribe(code: str, urls, progress, on_screen: bool = True) -> dict:
+    """Blocking. `urls` is the audio-only track first (when Instagram's page
+    gave us one) then the video; the next is tried if one fails.
+    `progress(percent, stage)` is called as it goes. `on_screen` is False for
+    pre-checks of reels the viewer hasn't reached yet."""
     if code in _cache:
         return _cache[code]
     if _IMPORT_ERROR:
         return {"available": False, "error": f"faster-whisper not installed ({_IMPORT_ERROR})"}
-    if not video_url:
+    urls = [u for u in ([urls] if isinstance(urls, str) else list(urls or [])) if u]
+    if not urls:
         return {"available": False, "error": "no video file for this post"}
 
     started = time.monotonic()
-    path = None
     if not on_screen:
         # A pre-check never jumps ahead of the reel on screen.
         while _screen_reel_waiting() and code not in _promoted:
@@ -286,72 +358,21 @@ def transcribe(code: str, video_url: str, progress, on_screen: bool = True) -> d
     try:
         if code in _cache:            # another request finished it while we waited
             return _cache[code]
-        try:
-            path, video_seconds = _download(video_url, progress)
-            if _someone_else_waiting(code, on_screen):
-                raise _MovedOn()
-            progress(8, "Loading the speech model…" if _model is None else "Listening…")
-            model = _get_model()
-
-            segments, info = model.transcribe(
-                path,
-                beam_size=1,
-                vad_filter=True,               # skip music/silence instead of inventing words
-                condition_on_previous_text=False,
-                clip_timestamps=[0, MAX_AUDIO_SECONDS],   # only the first minute
-            )
-            duration = min(float(info.duration or 0.0), MAX_AUDIO_SECONDS) or 1.0
-
-            kept: list[str] = []
-            logprobs: list[float] = []
-            for seg in segments:
-                if _someone_else_waiting(code, on_screen):
-                    raise _MovedOn()
-                if seg.start > MAX_AUDIO_SECONDS:
-                    break
-                # Whisper's classic failure on music: confidently "hearing"
-                # words that aren't there. Drop segments it itself doubts.
-                if seg.no_speech_prob > 0.6 and seg.avg_logprob < -0.8:
-                    continue
-                text = seg.text.strip()
-                if text:
-                    kept.append(text)
-                    logprobs.append(seg.avg_logprob)
-                pct = 10 + int(88 * min(1.0, seg.end / duration))
-                progress(pct, f"Listening… {int(seg.end)}s / {int(duration)}s")
-
-            text = " ".join(kept).strip()
-            mean_lp = sum(logprobs) / len(logprobs) if logprobs else -9.0
-            lang_p = float(info.language_probability or 0.0)
-            reliable = bool(text) and lang_p >= 0.5 and mean_lp > -1.0
-            result = {
-                "available": True,
-                "text": text,
-                "no_speech": not text,
-                "language": info.language,
-                "confidence": round(lang_p, 3),
-                "quality": "good" if reliable else ("none" if not text else "rough"),
-                "is_reliable": reliable,
-                "char_count": len(text),
-                "audio_seconds": round(float(info.duration or 0.0), 1),
-                "listened_seconds": round(min(float(info.duration or 0.0), MAX_AUDIO_SECONDS), 1),
-                "video_seconds": round(video_seconds, 1) if video_seconds else None,
-                "elapsed_seconds": round(time.monotonic() - started, 1),
-                "engine": f"whisper-{MODEL_SIZE}",
-            }
-            _cache[code] = result
-            return result
-        except _MovedOn:
-            log.info("Stopped listening to %s: a newer reel is waiting", code)
-            return {"available": False, "error": "skipped — another reel went first"}
-        except Exception as exc:
-            log.warning("Transcription failed for %s: %s", code, exc)
-            return {"available": False, "error": f"Couldn't transcribe: {exc}"}
-        finally:
-            if path:
-                try:
-                    os.remove(path)
-                except OSError:
-                    pass
+        last_error = None
+        for i, url in enumerate(urls):
+            try:
+                result = _listen_once(url, code, on_screen, progress, started)
+                # Which file was actually heard: the small audio-only track
+                # (when Instagram's page provided one) or the video file.
+                result["via"] = "audio track" if (len(urls) > 1 and i == 0) else "video file"
+                _cache[code] = result
+                return result
+            except _MovedOn:
+                log.info("Stopped listening to %s: a newer reel is waiting", code)
+                return {"available": False, "error": "skipped — another reel went first"}
+            except Exception as exc:
+                last_error = exc
+                log.warning("Listening to %s via %s failed: %s", code, url[:60], exc)
+        return {"available": False, "error": f"Couldn't transcribe: {last_error}"}
     finally:
         _run_lock.release()

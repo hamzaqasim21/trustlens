@@ -110,7 +110,7 @@ def test_flag_type_names_match_the_post_checker():
         "off_platform_contact", "phone_number", "hashtag_stuffing", "shouting",
         "link_pushing",
         # contributed by the link and claim checkers
-        "link_risk", "impossible_claim",
+        "link_risk", "impossible_claim", "prize_scam",
     }
     assert (HIGH_FLAGS | MEDIUM_FLAGS | LOW_FLAGS) <= known
 

@@ -13,3 +13,4 @@
 .st-danger { box-shadow: 8px 8px 0 var(--bad); }
 .st-confirm { display: grid; gap: 14px; padding: 16px; border-radius: 16px; background: var(--bad-bg); }
 .st-confirm-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+

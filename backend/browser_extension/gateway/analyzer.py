@@ -45,6 +45,7 @@ HIGH_FLAGS = {
     "health_claim",          # "cures diabetes" — the flag the category model misses
     "impossible_claim",      # arithmetic that cannot be true
     "link_risk",             # a link to a known-bad or disguised destination
+    "prize_scam",            # "you have won a free iPhone, text WIN to 80082"
 }
 
 MEDIUM_FLAGS = {"urgency", "engagement_bait", "phone_number"}
@@ -371,6 +372,7 @@ _FLAG_HEADLINE = {
     "health_claim": "unsupported health claims",
     "impossible_claim": "claims that cannot be true",
     "link_risk": "a suspicious link",
+    "prize_scam": "a fake prize or lottery win",
     "phone_number": "a phone number to contact",
     "urgency": "pressure tactics",
     "engagement_bait": "engagement bait",

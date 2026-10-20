@@ -33,7 +33,7 @@ function AdminUserDetail() {
   const actions = {
     suspend: {
       title: `Suspend ${u.full_name}?`,
-      body: <p>They'll be signed out on their next request and won't be able to log in. Their scans and disputes are kept. You can reactivate them at any time.</p>,
+      body: <p>They'll be signed out on their next request and won't be able to log in. Their scans and reports are kept. You can reactivate them at any time.</p>,
       confirmLabel: 'Suspend account',
       danger: true,
       reasonLabel: 'Reason for suspending',
@@ -48,7 +48,7 @@ function AdminUserDetail() {
     },
     promote: {
       title: `Make ${u.full_name} an administrator?`,
-      body: <p>They'll get full access to this console — users, disputes, scans and the audit log. Only give this to people who run the platform.</p>,
+      body: <p>They'll get full access to this console — users, reports, scans and the audit log. Only give this to people who run the platform.</p>,
       confirmLabel: 'Grant admin access',
       danger: true,
       run: () => adminApi.setRole(u.id, 'admin'),
@@ -96,9 +96,9 @@ function AdminUserDetail() {
             )}
           </Card>
 
-          <Card eyebrow="DISPUTES FILED" title={`Disputes (${data.appeals.length})`}>
+          <Card eyebrow="REPORTS FILED" title={`Reports (${data.appeals.length})`}>
             {data.appeals.length === 0 ? (
-              <EmptyState title="No disputes filed" />
+              <EmptyState title="No reports filed" />
             ) : (
               <table className="adm-table">
                 <thead><tr><th>Account</th><th className="adm-num">Score</th><th>Status</th><th>Filed</th></tr></thead>

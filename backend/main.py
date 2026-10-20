@@ -7,19 +7,20 @@ import os
 import json
 from datetime import datetime, timedelta
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import asynccontextmanager
 sys.path.append(os.path.join(os.path.dirname(__file__), "misinfo_classifier", "api"))
 from model_loader import classify_text
 
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from fake_follower import analyze_fake_followers, name_features
-from misinfo_assessment import assess_text, worst
-from engagement_analyzer import analyze_engagement, analyze_comment_authenticity
+from fake_follower import analyze_fake_followers
+from engagement_analyzer import analyze_engagement
 from trust_score import calculate_trust_score
-from data_ingestion import fetch_instagram_profile, fetch_engagement_data, fetch_post_comments
-from credential_extractor import calculate_credential_confidence
 from database import init_db, get_db, ScanHistory, User, VerificationCode, Appeal
+from scan_service import run_scan, ScanFailed
+import watchlist
+import insights
 from auth import (
     hash_password, verify_password, create_token, get_current_user,
     EMAIL_RE, MAX_PASSWORD_BYTES, password_strength_error,
@@ -28,10 +29,24 @@ from auth import (
 from email_service import send_verification_code, email_configured
 from admin import router as admin_router, APPEAL_SLA_HOURS
 
+@asynccontextmanager
+async def lifespan(app):
+    # Load the 1.1 GB misinformation model in the background as the server
+    # starts, instead of making the first scan (or the first reel the browser
+    # extension checks) wait for it. The server answers requests meanwhile.
+    import threading
+    from model_loader import load_model
+    threading.Thread(target=load_model, daemon=True).start()
+    # Daily automatic re-check of watched accounts (watchlist.py).
+    watchlist.start_background_rechecks()
+    yield
+
+
 app = FastAPI(
     title="TrustLens API",
     description="AI-Powered Influencer Authenticity Detection",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -46,7 +61,30 @@ app.add_middleware(
 
 init_db()
 
+# ---- The browser extension's two model services, served from this process ----
+# The extension used to run them as two extra programs (ports 8001 and 8002),
+# each loading its OWN copy of the same models the website already has in
+# memory: two copies of the 1.1 GB misinformation model whenever both were
+# running. Measured on a friend's 8 GB laptop, that ran Windows out of memory
+# and the misinformation service was killed mid-demo. Mounted here, the
+# extension uses the very same loaded model objects as the website — one copy,
+# and the website and the extension literally cannot disagree. The standalone
+# versions still work on their own (used by the tests).
+_GATEWAY_DIR = os.path.join(os.path.dirname(__file__), "browser_extension", "gateway")
+if _GATEWAY_DIR not in sys.path:
+    sys.path.append(_GATEWAY_DIR)
+try:
+    import post_checker_api as _ext_classifier
+    import follower_api as _ext_account
+    app.mount("/ext/classifier", _ext_classifier.app)
+    app.mount("/ext/account", _ext_account.app)
+except Exception as _exc:  # the website itself must still start
+    print(f"[TrustLens] Browser-extension model services not mounted: {_exc}")
+
 app.include_router(admin_router)
+app.include_router(watchlist.router)
+app.include_router(insights.router)
+
 
 
 def _user_payload(user: User) -> dict:
@@ -115,157 +153,12 @@ def analyze_profile_live(
     # only presentation and can be skipped by calling the API directly.
     current_user: User = Depends(get_current_user),
 ):
-    username = (data.get("username") or "").strip().lstrip("@")
-
-    if not username:
-        return {"error": "Please provide a username"}
-
-    # Profile and engagement data don't depend on each other, so fetch both
-    # RapidAPI calls at the same time instead of waiting for one then the
-    # other — this alone cuts a meaningful chunk off total scan time.
-    with ThreadPoolExecutor(max_workers=2) as pool:
-        profile_future = pool.submit(fetch_instagram_profile, username)
-        engagement_future = pool.submit(fetch_engagement_data, username)
-
-        try:
-            profile = profile_future.result()
-        except Exception as e:
-            return {"error": f"Could not fetch Instagram data: {str(e)}"}
-
-        try:
-            engagement_data = engagement_future.result()
-        except Exception as e:
-            return {"error": f"Could not fetch engagement data: {str(e)}"}
-
-    fake_result = analyze_fake_followers(
-        profile["followers"], profile["following"], profile["posts"],
-        profile["has_profile_pic"], profile["bio_length"],
-        profile["has_external_url"], profile["is_private"],
-        **name_features(profile.get("username"), profile.get("full_name")),
-    )
-
-    engagement_result = analyze_engagement(
-        profile["followers"],
-        engagement_data["avg_likes"],
-        engagement_data["avg_comments"],
-        profile["posts"],
-        posts_analyzed=engagement_data.get("posts_analyzed"),
-    )
-
-    # ---- Comment Authenticity Check (uses most recent post) ----
-    comment_authenticity = {
-        "verdict": "No posts available",
-        "comment_diversity_score": None,
-        "campaign_keyword_detected": False
-    }
     try:
-        post_codes = engagement_data.get("post_codes", [])
-        if post_codes:
-            comments = fetch_post_comments(post_codes[0])
-            comment_authenticity = analyze_comment_authenticity(comments)
-    except Exception:
-        pass
-
-    # ---- Credential Extraction & Confidence Scoring ----
-    # Checked against the PMDC and US NPI doctor registers when the bio claims
-    # to be a doctor; other credentials are reported but not scored.
-    credential_result = calculate_credential_confidence(
-        profile.get("biography", ""), profile["is_verified"],
-        full_name=profile.get("full_name") or "",
-    )
-
-    # ---- Misinformation Classification (bio + post captions) ----
-    # Scope document: "processes two sources of input: written post captions
-    # extracted directly from the profile, and Whisper-transcribed text from
-    # video reels." Bio-only was a known, documented gap — now every fetched
-    # caption is checked too. One flagged caption is enough to matter, so the
-    # single worst (highest-risk) result across bio + captions is what feeds
-    # the Trust Score; every individual result is kept for the Details page.
-    misinfo_sources = []
-
-    # Each text goes through assess_text: the AI classifier, cross-checked
-    # against the rule-based red flags (see misinfo_assessment.py for why).
-    bio_text = profile.get("biography", "")
-    if bio_text and bio_text.strip():
-        try:
-            r = assess_text(bio_text, classify_text)
-            r["source"] = "bio"
-            r["text_preview"] = bio_text[:80]
-            misinfo_sources.append(r)
-        except Exception as e:
-            misinfo_sources.append({"status": "error", "message": str(e), "source": "bio"})
-
-    for caption in engagement_data.get("post_captions", []):
-        try:
-            r = assess_text(caption, classify_text)
-            r["source"] = "caption"
-            r["text_preview"] = caption[:80]
-            misinfo_sources.append(r)
-        except Exception:
-            pass  # one bad caption shouldn't break the whole scan
-
-    misinfo_result = worst(misinfo_sources)
-    if misinfo_result is None:
-        misinfo_result = {
-            "status": "skipped",
-            "message": "No bio or caption text was available to classify",
-        }
-
-    trust_result = calculate_trust_score(
-        fake_result["bot_percentage"],
-        engagement_result["engagement_score"],
-        misinfo_result,
-        credential_result
-    )
-
-    result = {
-        "username": profile["username"],
-        "full_name": profile["full_name"],
-        "is_verified": profile["is_verified"],
-        "raw_profile_data": profile,
-        "engagement_data": engagement_data,
-        "fake_follower_analysis": fake_result,
-        "engagement_analysis": engagement_result,
-        "comment_authenticity": comment_authenticity,
-        "credential_analysis": credential_result,
-        "misinformation_analysis": misinfo_result,
-        "misinformation_sources": misinfo_sources,
-        "trust_score": trust_result
-    }
-
-    # ---- Save this scan to history ----
-    # A DB hiccup should never break a scan that already succeeded, so this
-    # is best-effort: log it and move on rather than failing the request.
-    try:
-        scan = ScanHistory(
-            user_id=current_user.id,
-            username=result["username"],
-            full_name=result["full_name"],
-            is_verified=result["is_verified"],
-            followers=profile.get("followers"),
-            trust_score=trust_result["trust_score"],
-            verdict=trust_result["verdict"],
-            color=trust_result["color"],
-            bot_percentage=fake_result.get("bot_percentage"),
-            engagement_score=engagement_result.get("engagement_score"),
-            misinformation_flag=misinfo_result.get("misinformation_flag"),
-            raw_result=json.dumps(result),
-        )
-        db.add(scan)
-        db.commit()
-        db.refresh(scan)
-        # Returned (not stored in raw_result) so the Results page can offer
-        # "Dispute this score" against this exact saved record — which is
-        # only possible when the scan is on the viewer's own account.
-        result["scan_id"] = scan.id
-        result["scan_owned"] = True
-    except Exception as e:
-        db.rollback()
-        result["scan_id"] = None
-        result["scan_owned"] = False
-        print(f"Warning: could not save scan history: {e}")
-
-    return result
+        return run_scan(db, current_user.id, data.get("username"), source="web")
+    except ScanFailed as e:
+        # "kind" lets the frontend tell "this username doesn't exist, check the
+        # spelling" apart from "Instagram was slow, try again".
+        return {"error": str(e), "kind": e.kind}
 
 
 @app.post("/test-misinfo")
@@ -449,6 +342,7 @@ def get_scan_history(
             "corrected_trust_score": s.corrected_trust_score,
             "corrected_verdict": s.corrected_verdict,
             "appeal_status": appeal_status.get(s.id),
+            "source": s.source or "web",
             "scanned_at": s.scanned_at.isoformat() if s.scanned_at else None,
         }
         for s in scans

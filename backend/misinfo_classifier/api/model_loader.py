@@ -15,6 +15,8 @@ Classes (must match train_model.py):
 """
 
 import os
+import threading
+
 import torch
 import torch.nn.functional as F
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
@@ -34,8 +36,27 @@ _device = "cuda" if torch.cuda.is_available() else "cpu"
 _tokenizer = None
 _model = None
 
+# One text at a time, and a couple of CPU cores left free. Measured
+# 2026-09-28: with several texts classified at once (the extension does
+# this while you scroll) this model's memory grew from 2.7 GB to 3.3 GB and
+# never came back down; on a friend's 8 GB laptop that ran Windows out of
+# memory after a few reels. On a CPU each text already uses every core, so
+# running them together was never faster — only bigger. The website and the
+# browser extension share this one loaded model (see main.py), so the lock
+# covers both.
+_load_lock = threading.Lock()
+_infer_lock = threading.Lock()
+if _device == "cpu":
+    torch.set_num_threads(max(2, min(4, (os.cpu_count() or 4) - 2)))
+
 
 def load_model():
+    global _tokenizer, _model
+    with _load_lock:
+        return _load_model_locked()
+
+
+def _load_model_locked():
     global _tokenizer, _model
     if _model is None:
         if not os.path.isdir(MODEL_DIR):
@@ -44,7 +65,11 @@ def load_model():
                 "Make sure the trained model files are placed in api/model/."
             )
         _tokenizer = AutoTokenizer.from_pretrained(MODEL_DIR)
-        _model = AutoModelForSequenceClassification.from_pretrained(MODEL_DIR)
+        # low_cpu_mem_usage loads the weights straight into the model instead
+        # of building the model and then copying a second full set of weights
+        # in — same numbers, without briefly needing twice the 1.1 GB.
+        _model = AutoModelForSequenceClassification.from_pretrained(
+            MODEL_DIR, low_cpu_mem_usage=True)
         _model.to(_device)
         _model.eval()
     return _tokenizer, _model
@@ -63,13 +88,14 @@ def classify_text(text: str) -> dict:
         }
 
     tokenizer, model = load_model()
-    inputs = tokenizer(
-        text, truncation=True, padding=True, max_length=384, return_tensors="pt"
-    ).to(_device)
+    with _infer_lock:
+        inputs = tokenizer(
+            text, truncation=True, padding=True, max_length=384, return_tensors="pt"
+        ).to(_device)
 
-    with torch.no_grad():
-        logits = model(**inputs).logits
-        probs = F.softmax(logits, dim=-1).squeeze().cpu().tolist()
+        with torch.inference_mode():
+            logits = model(**inputs).logits
+            probs = F.softmax(logits, dim=-1).squeeze().cpu().tolist()
 
     category_scores = {name: round(p, 4) for name, p in zip(LABEL_NAMES, probs)}
     pred_idx = int(torch.tensor(probs).argmax())

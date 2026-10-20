@@ -1,0 +1,2 @@
+.rx-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.rx-actions-msg { font-size: 13.5px; color: var(--ink-soft); }

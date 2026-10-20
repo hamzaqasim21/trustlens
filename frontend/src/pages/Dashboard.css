@@ -101,3 +101,6 @@
   .db-controls { width: 100%; }
   .db-filters { overflow-x: auto; max-width: 100%; }
 }
+
+/* Scan history export button (2026-09-28) */
+.db-history-export { margin-left: auto; }

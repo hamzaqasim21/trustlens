@@ -98,11 +98,12 @@
   margin-top: clamp(16px, 3vw, 40px);
 }
 .landing-ig .ig-hero-intro {
-  max-width: 480px;
+  max-width: 580px;
   display: grid;
   justify-items: center;
-  gap: 18px;
-  font-size: 15px;
+  gap: 20px;
+  font-size: 19.5px;
+  line-height: 1.5;
   text-align: center;
   color: var(--on-indigo-soft);
 }

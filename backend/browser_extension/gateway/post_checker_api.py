@@ -31,8 +31,10 @@ Run:
 """
 from __future__ import annotations
 
+import asyncio
 import os
 import sys
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -67,11 +69,22 @@ from red_flags import detect_red_flags, flag_pressure  # noqa: E402
 
 _IMPORT_ERROR: str | None = None
 try:
-    from model_loader import classify_text  # type: ignore
+    # One text at a time and a CPU limit are enforced inside model_loader itself,
+    # because the website backend mounts this app and shares the one loaded model
+    # (see backend/main.py).
+    from model_loader import classify_text, load_model  # type: ignore
 except Exception as exc:  # pragma: no cover - only hit on a broken install
     _IMPORT_ERROR = f"{type(exc).__name__}: {exc}"
 
-app = FastAPI(title="TrustLens Post Checker", version="1.0.0")
+@asynccontextmanager
+async def lifespan(app):
+    if not _IMPORT_ERROR:
+        # Load the 1.1 GB model now, not on the first reel someone scans.
+        await asyncio.to_thread(load_model)
+    yield
+
+
+app = FastAPI(title="TrustLens Post Checker", version="1.0.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"],
 )
@@ -97,11 +110,20 @@ class TextRequest(BaseModel):
     resolve_links: bool = False
 
 
+def _model_is_loaded() -> bool:
+    try:
+        import model_loader  # type: ignore
+        return model_loader._model is not None
+    except Exception:
+        return False
+
+
 @app.get("/health")
 def health():
     return {
         "status": "degraded" if _IMPORT_ERROR else "ok",
         "classifier_importable": _IMPORT_ERROR is None,
+        "model_loaded": _model_is_loaded(),
         "backend_dir": str(BACKEND_DIR),
         "error": _IMPORT_ERROR,
     }

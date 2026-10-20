@@ -144,3 +144,22 @@ def test_flag_pressure_weights_high_above_low():
 
 def test_flag_pressure_of_nothing_is_zero():
     assert flag_pressure([]) == 0
+
+
+def test_fake_prize_messages_are_flagged():
+    assert "prize_scam" in types_in(
+        "Congratulations! You have won a free iPhone, text WIN to 80082 to claim your prize now")
+    assert "prize_scam" in types_in("You've been selected to win $1000 cash")
+    assert "prize_scam" in types_in("Pay a small fee to release your reward")
+    assert "prize_scam" in types_in("Lottery winner announced, is it you?")
+
+
+def test_ordinary_giveaways_are_not_prize_scams():
+    for text in [
+        "GIVEAWAY! Tag 2 friends to win this dress",
+        "Congrats @sara_k, you won our giveaway! Check your DMs",
+        "Follow and share to enter, winner announced Friday",
+        "You have won my heart with this recipe",
+        "Text me when you get home",
+    ]:
+        assert "prize_scam" not in types_in(text), text

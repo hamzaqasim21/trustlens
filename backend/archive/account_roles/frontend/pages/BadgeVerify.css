@@ -1,0 +1,14 @@
+.bv-wrap { display: grid; gap: 18px; justify-items: start; }
+.bv-title { font-size: clamp(52px, 8vw, 110px); }
+.bv-code { color: var(--ink-soft); font-size: 14px; }
+.bv-loading { padding: 40px; }
+.bv-card { width: 100%; display: grid; gap: 14px; justify-items: center; text-align: center; }
+.bv-card h2 { font-size: 30px; letter-spacing: -0.02em; }
+.bv-ok { box-shadow: 8px 8px 0 var(--ok); }
+.bv-warn { box-shadow: 8px 8px 0 var(--warn); }
+.bv-bad { box-shadow: 8px 8px 0 var(--bad); justify-items: start; text-align: left; }
+.bv-facts { width: 100%; margin: 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.bv-facts div { padding: 10px 8px; border-radius: 14px; background: var(--lav); }
+.bv-facts dt { font-size: 12px; color: var(--ink-soft); font-weight: 600; }
+.bv-facts dd { margin: 4px 0 0; font: 800 15px/1.2 var(--mono); }
+@media (max-width: 600px) { .bv-facts { grid-template-columns: repeat(2, 1fr); } }

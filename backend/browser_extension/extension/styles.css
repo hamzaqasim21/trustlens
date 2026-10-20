@@ -460,3 +460,35 @@
   .tl-breakdown { background: rgba(255, 255, 255, .04) !important; }
   .tl-breakdown-bar { background: rgba(255, 255, 255, .12) !important; }
 }
+
+/* ------------------------------------------------------------------ *
+ * Idle — "Scan this reel" mode. Nothing has been checked yet, so the
+ * badge is a small neutral pill with one button, and nothing else.
+ * ------------------------------------------------------------------ */
+.tl-badge.tl-idle { --tl-bg: #ffffff; --tl-border: #e5e7eb; }
+.tl-idle .tl-dot { background: #94a3b8 !important; }
+.tl-badge.tl-idle .tl-row { cursor: default !important; }
+.tl-badge.tl-idle .tl-chevron { display: none !important; }
+
+.tl-row-action {
+  all: unset !important;
+  display: none !important;
+  flex: 0 0 auto !important;
+  cursor: pointer !important;
+  font-family: inherit !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  padding: 5px 12px !important;
+  border-radius: 999px !important;
+  color: #ffffff !important;
+  background: linear-gradient(135deg, #833AB4, #E1306C 55%, #F77737) !important;
+  box-shadow: 0 2px 8px rgba(225, 48, 108, .35) !important;
+}
+.tl-badge.tl-idle .tl-row-action { display: inline-block !important; }
+.tl-row-action:hover { filter: brightness(1.08) !important; }
+.tl-row-action:focus-visible { outline: 2px solid #833AB4 !important; outline-offset: 2px !important; }
+.tl-row-action[disabled] { opacity: .6 !important; cursor: default !important; }
+
+@media (prefers-color-scheme: dark) {
+  .tl-badge.tl-idle { --tl-bg: #16181c; --tl-border: #374151; }
+}

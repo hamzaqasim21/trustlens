@@ -24,7 +24,7 @@ function AdminOverview() {
         <>
           {data.appeals.overdue > 0 && (
             <Link to="/admin/appeals" className="adm-alert">
-              <strong>{data.appeals.overdue} score {data.appeals.overdue === 1 ? 'dispute has' : 'disputes have'} passed the 48-hour review promise.</strong>
+              <strong>{data.appeals.overdue} score {data.appeals.overdue === 1 ? 'report has' : 'reports have'} passed the 48-hour review promise.</strong>
               <span>Review now →</span>
             </Link>
           )}
@@ -46,7 +46,7 @@ function AdminOverview() {
               sub="across every scan ever run"
             />
             <StatTile
-              label="Disputes awaiting review"
+              label="Reports awaiting review"
               value={formatNumber(data.appeals.pending)}
               sub={data.appeals.overdue ? `${data.appeals.overdue} overdue` : 'none overdue'}
               tone={data.appeals.overdue ? 'danger' : data.appeals.pending ? 'warning' : undefined}
@@ -75,7 +75,7 @@ function AdminOverview() {
                   <dd>{formatNumber(data.scans.by_logged_in_users)} of {formatNumber(data.scans.total)}</dd>
                 </div>
                 <div>
-                  <dt>Disputes decided</dt>
+                  <dt>Reports decided</dt>
                   <dd>{data.appeals.upheld} upheld · {data.appeals.rejected} rejected</dd>
                 </div>
               </dl>
@@ -106,7 +106,7 @@ function AdminOverview() {
 
           <Card eyebrow="ACCOUNTABILITY" title="Recent admin activity" action={<Link to="/admin/audit" className="adm-link">Full audit log →</Link>}>
             {data.recent_activity.length === 0 ? (
-              <EmptyState title="No admin actions yet">Suspensions, role changes and dispute decisions will be listed here.</EmptyState>
+              <EmptyState title="No admin actions yet">Suspensions, role changes and report decisions will be listed here.</EmptyState>
             ) : (
               <ul className="adm-activity">
                 {data.recent_activity.map((a, i) => (

@@ -57,6 +57,63 @@ def _remember(cache: dict, key: str, value: dict) -> dict:
     return value
 
 
+class _Service:
+    """One model service that may be reachable at more than one address.
+
+    Remembers the address that last answered and only moves to another when
+    nothing is listening at the current one (connection refused). A slow
+    answer is NOT a reason to switch: that service is alive and busy, and
+    sending the same text elsewhere would only load a second copy of a 1 GB
+    model onto the same laptop."""
+
+    def __init__(self, name: str, urls: list):
+        self.name = name
+        self.urls = urls
+        self.current = urls[0]
+
+    def _order(self) -> list:
+        return [self.current] + [u for u in self.urls if u != self.current]
+
+    async def post(self, path: str, payload: dict, timeout: float):
+        last_exc = None
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            for base in self._order():
+                try:
+                    r = await client.post(f"{base}{path}", json=payload)
+                except (httpx.ConnectError, httpx.ConnectTimeout) as exc:
+                    last_exc = exc
+                    continue
+                if r.status_code == 404:        # something else lives there
+                    last_exc = httpx.HTTPStatusError("404", request=r.request, response=r)
+                    continue
+                self.current = base
+                return r
+        raise last_exc or httpx.ConnectError("no address answered")
+
+    async def health(self) -> dict:
+        async with httpx.AsyncClient(timeout=8.0) as client:
+            for base in self._order():
+                try:
+                    r = await client.get(f"{base}/health")
+                except Exception:
+                    continue
+                if r.status_code < 400:
+                    self.current = base
+                    info = {"up": True, "status_code": r.status_code, "via": base}
+                    try:
+                        body = r.json()
+                        if "model_loaded" in body:
+                            info["loaded"] = bool(body["model_loaded"])
+                    except Exception:
+                        pass
+                    return info
+        return {"up": False, "tried": self._order()}
+
+
+CLASSIFIER = _Service("classifier", settings.classifier_urls)
+ACCOUNT_MODEL = _Service("account_model", settings.follower_urls)
+
+
 async def classify_text(text: str) -> dict:
     if text and text in _classify_cache:
         return dict(_classify_cache[text])
@@ -80,33 +137,26 @@ async def _classify_text(text: str) -> dict:
     if not text or not text.strip():
         return {"available": False, "error": "no text to classify"}
 
-    url = f"{settings.classifier_url}/check-text"
     try:
-        async with httpx.AsyncClient(timeout=settings.fast_timeout) as client:
-            r = await client.post(
-                url,
-                json={
-                    "text": text,
-                    # Network fact-check lookups add seconds per request and the
-                    # extension runs on every post you scroll past. Off here.
-                    "check_facts": False,
-                    "resolve_links": False,
-                },
-            )
-            r.raise_for_status()
-            data = r.json()
-            data["available"] = True
-            return data
+        r = await CLASSIFIER.post("/check-text", {
+            "text": text,
+            # Network fact-check lookups add seconds per request. Off here.
+            "check_facts": False,
+            "resolve_links": False,
+        }, settings.fast_timeout)
+        r.raise_for_status()
+        data = r.json()
+        data["available"] = True
+        return data
     except httpx.HTTPStatusError as exc:
         detail = _detail(exc)
         log.warning("Classifier returned %s: %s", exc.response.status_code, detail)
         return {"available": False, "error": detail}
     except Exception as exc:
-        log.warning("Classifier unreachable at %s: %s", url, exc)
+        log.warning("Classifier unreachable (%s): %s", ", ".join(CLASSIFIER.urls), exc)
         return {
             "available": False,
-            "error": f"Post checker not reachable on {settings.classifier_url}. "
-                     f"Start it, then retry.",
+            "error": "the misinformation model isn't running (start the services with start_all.ps1)",
         }
 
 
@@ -115,55 +165,34 @@ async def _classify_text(text: str) -> dict:
 # --------------------------------------------------------------------------- #
 async def _predict_account(features: dict) -> dict:
     """Classify one Instagram account from the 7 raw profile features."""
-    url = f"{settings.follower_url}/predict-account"
     try:
-        async with httpx.AsyncClient(timeout=settings.fast_timeout) as client:
-            r = await client.post(url, json=features)
-            r.raise_for_status()
-            data = r.json()
-            data["available"] = True
-            return data
+        r = await ACCOUNT_MODEL.post("/predict-account", features, settings.fast_timeout)
+        r.raise_for_status()
+        data = r.json()
+        data["available"] = True
+        return data
     except httpx.HTTPStatusError as exc:
         detail = _detail(exc)
         log.warning("Account model returned %s: %s", exc.response.status_code, detail)
         return {"available": False, "error": detail}
     except Exception as exc:
-        log.warning("Account model unreachable at %s: %s", url, exc)
+        log.warning("Account model unreachable (%s): %s", ", ".join(ACCOUNT_MODEL.urls), exc)
         return {
             "available": False,
-            "error": f"Account model not reachable on {settings.follower_url}.",
+            "error": "the fake-account model isn't running (start the services with start_all.ps1)",
         }
 
 
 # --------------------------------------------------------------------------- #
 # Health
 # --------------------------------------------------------------------------- #
-async def _probe(name: str, url: str) -> tuple[str, dict]:
-    """Is the service at `url` actually the service we think it is?
-
-    `status_code < 400`, not `< 500`. A 404 means that health path does not
-    exist, so something else is answering on that port — which is not a
-    hypothetical: the old external transcriber's port 8000 was the same port
-    the main TrustLens website runs on, and with a `< 500` check the gateway
-    reported "transcriber: up" off the website's own 404. Reporting a service as up because
-    *something* answered is exactly the kind of false reassurance this
-    codebase refuses to give anywhere else.
-    """
-    try:
-        async with httpx.AsyncClient(timeout=4.0) as client:
-            r = await client.get(url)
-            return name, {"up": r.status_code < 400, "status_code": r.status_code}
-    except Exception as exc:
-        return name, {"up": False, "error": type(exc).__name__}
-
-
 async def health_report() -> dict:
     """Ask the two model services at once whether they are up."""
     checks = await asyncio.gather(
-        _probe("classifier", f"{settings.classifier_url}/health"),
-        _probe("account_model", f"{settings.follower_url}/health"),
+        CLASSIFIER.health(),
+        ACCOUNT_MODEL.health(),
     )
-    return dict(checks)
+    return {"classifier": checks[0], "account_model": checks[1]}
 
 
 def _detail(exc: httpx.HTTPStatusError) -> str:

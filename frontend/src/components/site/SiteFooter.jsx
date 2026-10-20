@@ -17,7 +17,7 @@ function SiteFooter() {
           <div className="tl-foot-col">
             <b>PRODUCT</b>
             <Link to="/scan">Scan a profile</Link>
-            <Link to="/comparison">Compare two</Link>
+            <Link to="/comparison">Compare accounts</Link>
             <Link to="/extension">Chrome extension</Link>
             {user ? <Link to="/dashboard">Your dashboard</Link> : <Link to="/signup">Create an account</Link>}
           </div>

@@ -1,0 +1,20 @@
+.atp { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.atp-option {
+  position: relative;
+  display: grid;
+  gap: 4px;
+  align-content: start;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 2px solid var(--ink-line);
+  background: #FFFFFF;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.atp-option:hover { border-color: rgba(43, 17, 64, 0.32); }
+.atp-option.is-on { border-color: var(--ink); box-shadow: 4px 4px 0 var(--pink); }
+.atp-option input { position: absolute; opacity: 0; pointer-events: none; }
+.atp-option:has(input:focus-visible) { box-shadow: 0 0 0 4px rgba(225, 48, 108, 0.25); }
+.atp-option strong { font-size: 14.5px; }
+.atp-option span { font-size: 12.5px; line-height: 1.4; color: var(--ink-soft); }
+@media (max-width: 560px) { .atp { grid-template-columns: 1fr; } }

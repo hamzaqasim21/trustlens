@@ -48,6 +48,34 @@
     return typeof o.video_url === "string" ? o.video_url : "";
   }
 
+  // Instagram's player streams a reel as separate video and audio tracks, and
+  // describes them in `video_dash_manifest` (an MPEG-DASH XML document). The
+  // audio-only track is ~0.5 MB a minute against 7-19 MB for the video, so on
+  // a slow connection it's the difference between listening in a second or a
+  // minute. Lowest bitrate is plenty for speech. Empty if there's no manifest
+  // — the gateway then falls back to the video file.
+  function audioOf(o) {
+    const mpd = o.video_dash_manifest;
+    if (typeof mpd !== "string" || mpd.indexOf("audio") === -1) return "";
+    try {
+      const doc = new DOMParser().parseFromString(mpd, "application/xml");
+      let best = null;
+      for (const rep of doc.getElementsByTagName("Representation")) {
+        const set = rep.parentElement;
+        const kind = (rep.getAttribute("mimeType") || "") + " " +
+          ((set && (set.getAttribute("mimeType") || set.getAttribute("contentType"))) || "");
+        if (kind.indexOf("audio") === -1) continue;
+        const base = rep.getElementsByTagName("BaseURL")[0];
+        if (!base || !base.textContent) continue;
+        const bw = Number(rep.getAttribute("bandwidth")) || Infinity;
+        if (!best || bw < best.bw) best = { url: base.textContent.trim(), bw };
+      }
+      return best ? best.url : "";
+    } catch (e) {
+      return "";
+    }
+  }
+
   function pick(o) {
     const video = videoOf(o);
     return {
@@ -60,6 +88,7 @@
       is_video: !!video,
       has_audio: video ? o.has_audio !== false : false,
       video_url: video,
+      audio_url: video ? audioOf(o) : "",
       like_count: Number(o.like_count) || 0,
       comment_count: Number(o.comment_count) || 0,
     };
