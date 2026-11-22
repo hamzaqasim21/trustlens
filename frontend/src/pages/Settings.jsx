@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import PageShell from '../components/site/PageShell'
 import { useAuth } from '../context/AuthContext'
-import { changePassword, deleteAccount, updateProfile } from '../api/trustlens'
+import { changePassword, deleteAccount, setAccountType, updateProfile } from '../api/trustlens'
+import AccountTypePicker from '../components/AccountTypePicker'
+import { ACCOUNT_TYPE_LABEL } from '../lib/accountTypes'
 import './Settings.css'
 
 // Every button on this page does what it says. The earlier version had
@@ -56,6 +58,51 @@ function ProfileCard({ user, onSaved }) {
       <button type="submit" className="tl-btn tl-btn-grad" disabled={busy || unchanged || !name.trim()}>
         {busy ? 'Saving…' : 'Save changes'}
       </button>
+    </form>
+  )
+}
+
+// Scope §10's three kinds of user. Changing it is a real PATCH /me; the
+// server re-checks the type on every Creator studio / Brand tools endpoint.
+function AccountTypeCard({ user, onSaved }) {
+  const current = user.account_type || 'personal'
+  const [type, setType] = useState(current)
+  const [busy, setBusy] = useState(false)
+  const [state, setState] = useState(null)
+
+  async function save(e) {
+    e.preventDefault()
+    setBusy(true)
+    setState(null)
+    try {
+      const updated = await setAccountType(type)
+      onSaved(updated)
+      setState({ ok: true, text: `Account type set to ${ACCOUNT_TYPE_LABEL[type]}.` })
+    } catch (err) {
+      setState({ ok: false, text: err.message })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <form className="st-card tl-card tl-card-pad" onSubmit={save}>
+      <div className="st-card-head">
+        <span className="st-tag st-tag-green">Account type</span>
+        <h2>What you use TrustLens for</h2>
+      </div>
+      <AccountTypePicker value={type} onChange={(t) => { setType(t); setState(null) }} disabled={busy} name="settings-account-type" stacked />
+      <span className="tl-hint">
+        Creators get the Creator studio, brands get Brand tools. Your scans, watchlist and reports stay with you either way.
+      </span>
+      <Status state={state} />
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+        <button type="submit" className="tl-btn tl-btn-grad" disabled={busy || type === current}>
+          {busy ? 'Saving…' : 'Save account type'}
+        </button>
+        {current === 'creator' && <Link to="/creator" className="tl-link">Open Creator studio</Link>}
+        {current === 'brand' && <Link to="/brand" className="tl-link">Open Brand tools</Link>}
+      </div>
     </form>
   )
 }
@@ -216,6 +263,7 @@ function Settings() {
       <section className="tl-band tl-band-tint">
         <div className="tl-wrap st-grid">
           <ProfileCard user={user} onSaved={applyUserUpdate} />
+          <AccountTypeCard user={user} onSaved={applyUserUpdate} />
           <PasswordCard />
           <DangerCard user={user} />
         </div>

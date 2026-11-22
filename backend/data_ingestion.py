@@ -4,6 +4,7 @@
 # ============================================================
 
 import re
+import time
 import requests
 import os
 from dotenv import load_dotenv
@@ -38,15 +39,59 @@ def _post_with_retry(url, headers, payload, timeout, label):
     last_exc = None
     for attempt in range(2):
         try:
-            return requests.post(url, headers=headers, data=payload, timeout=timeout)
+            response = requests.post(url, headers=headers, data=payload, timeout=timeout)
         except requests.exceptions.Timeout as e:
             last_exc = e
+            continue
+        except requests.exceptions.ConnectionError as e:
+            # e.g. "connection reset by peer" - the same kind of stall as a timeout
+            last_exc = e
+            continue
         except requests.exceptions.RequestException as e:
             raise Exception(f"Could not reach {label}: {e}")
+        # The provider occasionally answers 200 with a JSON list instead of the
+        # usual object (seen on real accounts, gone on the next try). Treat that
+        # as a hiccup and ask once more instead of crashing on it later.
+        if response.status_code == 200:
+            try:
+                if not isinstance(response.json(), dict):
+                    last_exc = ValueError("unexpected reply shape")
+                    continue
+            except ValueError:
+                last_exc = ValueError("reply was not JSON")
+                continue
+        return response
+    if isinstance(last_exc, ValueError):
+        raise Exception(f"{label} sent an unexpected reply twice in a row. "
+                        f"This is a temporary problem on their side - please try again shortly.")
     raise TimeoutError(
         f"{label} took too long to respond, twice in a row (over {timeout}s each time). "
         f"This is a temporary network issue, not a problem with the username — please try again shortly."
     )
+
+
+# The provider sometimes answers that IT is being rate-limited by Instagram,
+# e.g. {"error": "Profile data not found. Received 429 Too Many Requests."}.
+# Seen on 2026-10-22 for @leomessi and @shakira; the same requests succeeded a
+# few seconds later. So those replies are retried after a short wait instead of
+# failing the scan. (A real "this account doesn't exist" reply is never retried.)
+_BUSY = re.compile(r"429|too many requests|rate.?limit|try again later", re.I)
+BUSY_WAITS = (2.0, 4.0)
+
+
+def _provider_busy(data) -> bool:
+    return isinstance(data, dict) and bool(_BUSY.search(str(data.get("error") or "")))
+
+
+def _post_json_patiently(url, headers, payload, timeout, label):
+    """_post_with_retry, plus up to two waits when the provider says it is busy.
+    Returns (response, data)."""
+    for wait in (*BUSY_WAITS, None):
+        response = _post_with_retry(url, headers, payload, timeout, label)
+        data = response.json() if response.status_code == 200 else None
+        if wait is None or not _provider_busy(data):
+            return response, data
+        time.sleep(wait)
 
 
 def fetch_instagram_profile(username: str) -> dict:
@@ -65,12 +110,10 @@ def fetch_instagram_profile(username: str) -> dict:
         "username_or_url": username
     }
 
-    response = _post_with_retry(RAPIDAPI_URL, headers, payload, 20, "Instagram")
+    response, data = _post_json_patiently(RAPIDAPI_URL, headers, payload, 20, "Instagram")
 
     if response.status_code != 200:
         raise Exception(f"Instagram API failed with status {response.status_code}")
-
-    data = response.json()
 
     # A missing account comes back as HTTP 200 with {"error": "...does not
     # exist..."}. Reading that with .get(..., 0) used to turn it into a profile
@@ -87,6 +130,9 @@ def fetch_instagram_profile(username: str) -> dict:
                 f"There's no public Instagram account called '{username}'. Check the spelling — "
                 f"private accounts and typos both come back this way."
             )
+        if _provider_busy(data):
+            raise Exception("Instagram is limiting requests right now (it said \"too many requests\"), "
+                            "even after waiting and trying again. Please try again in a minute.")
         raise Exception(f"Instagram API error: {reason}")
 
     profile_data = {
@@ -105,6 +151,63 @@ def fetch_instagram_profile(username: str) -> dict:
     }
 
     return profile_data
+
+
+def audio_url_from_manifest(mpd) -> str:
+    """Instagram streams a reel as separate video and audio tracks, described
+    in `video_dash_manifest` (an MPEG-DASH XML document). Returns the link to
+    the lowest-bitrate audio-only track (plenty for speech: ~0.5 MB a minute
+    against 7-19 MB for the video), or "" if there isn't one. Same rule the
+    browser extension uses (extension/page_hook.js, audioOf)."""
+    if not isinstance(mpd, str) or "audio" not in mpd:
+        return ""
+    import xml.etree.ElementTree as ET
+    try:
+        root = ET.fromstring(mpd)
+    except ET.ParseError:
+        return ""
+
+    def local(tag):
+        return tag.rsplit("}", 1)[-1]
+
+    best_url, best_bw = "", None
+    for aset in root.iter():
+        if local(aset.tag) != "AdaptationSet":
+            continue
+        set_kind = (aset.get("mimeType") or "") + " " + (aset.get("contentType") or "")
+        for rep in aset:
+            if local(rep.tag) != "Representation":
+                continue
+            if "audio" not in (rep.get("mimeType") or "") + " " + set_kind:
+                continue
+            base = next((c for c in rep.iter() if local(c.tag) == "BaseURL"), None)
+            if base is None or not (base.text or "").strip():
+                continue
+            try:
+                bw = float(rep.get("bandwidth") or "inf")
+            except ValueError:
+                bw = float("inf")
+            if best_bw is None or bw < best_bw:
+                best_url, best_bw = base.text.strip(), bw
+    return best_url
+
+
+def reel_media(node: dict) -> dict | None:
+    """The sound sources of one post, if it is a video: its audio-only track
+    and its video file. None for photos. Used by the Video-to-Text module."""
+    videos = node.get("video_versions") or []
+    if not videos and not node.get("video_dash_manifest"):
+        return None
+    has_audio = node.get("has_audio")
+    taken_at = node.get("taken_at") or node.get("taken_at_timestamp")
+    return {
+        "code": node.get("code"),
+        "audio_url": audio_url_from_manifest(node.get("video_dash_manifest")),
+        "video_url": (videos[0].get("url") or "") if videos else "",
+        "has_audio": has_audio is not False,
+        "taken_at": int(taken_at) if isinstance(taken_at, (int, float)) else None,
+        "product_type": node.get("product_type") or "",
+    }
 
 
 def fetch_engagement_data(username: str, amount: int = 12) -> dict:
@@ -126,12 +229,18 @@ def fetch_engagement_data(username: str, amount: int = 12) -> dict:
         "amount": amount
     }
 
-    response = _post_with_retry(POSTS_URL, headers, payload, 20, "Instagram posts API")
+    response, data = _post_json_patiently(POSTS_URL, headers, payload, 20, "Instagram posts API")
 
     if response.status_code != 200:
         raise Exception(f"Posts fetch failed with status {response.status_code}")
 
-    data = response.json()
+    # An error reply used to be read as "this account has no posts", which
+    # quietly turned engagement into "not measured". Say what happened instead.
+    if isinstance(data, dict) and data.get("error") and "posts" not in data:
+        if _provider_busy(data):
+            raise Exception("Instagram is limiting requests right now (it said \"too many requests\"), "
+                            "even after waiting and trying again. Please try again in a minute.")
+        raise Exception(f"Instagram posts API error: {data.get('error')}")
 
     edges = data.get("posts", [])
     likes = []
@@ -141,9 +250,16 @@ def fetch_engagement_data(username: str, amount: int = 12) -> dict:
     # One entry per post, for the engagement trend chart (Visual Analytics).
     # Same numbers the averages below are built from, just not averaged.
     posts = []
+    # Sound sources of the video posts, for the Video-to-Text module. These
+    # are signed links that expire within hours, so scan_service uses them
+    # during the scan and does not store them.
+    reels = []
 
     for edge in edges:
         node = edge.get("node", edge)
+        media = reel_media(node)
+        if media and media["code"] and (media["audio_url"] or media["video_url"]):
+            reels.append(media)
         like_n = node.get("like_count", 0) or 0
         comment_n = node.get("comment_count", 0) or 0
         likes.append(like_n)
@@ -184,6 +300,7 @@ def fetch_engagement_data(username: str, amount: int = 12) -> dict:
         "post_captions": post_captions,
         "posts": posts,
         "comments_off": comments_off,
+        "reel_media": reels,
     }
 
 
@@ -200,20 +317,34 @@ def fetch_media_data(media_code: str) -> dict:
         "x-rapidapi-key": RAPIDAPI_KEY
     }
 
-    try:
-        response = requests.get(MEDIA_URL, headers=headers,
-                                params={"media_code": media_code}, timeout=20)
-    except requests.exceptions.Timeout:
-        raise Exception("Instagram media API took too long to respond (over 20s).")
-    except requests.exceptions.RequestException as e:
-        raise Exception(f"Could not reach Instagram media API: {e}")
-
-    if response.status_code != 200:
-        raise Exception(f"Media fetch failed with status {response.status_code}")
-
-    data = response.json()
+    data = None
+    for attempt in range(2):
+        try:
+            response = requests.get(MEDIA_URL, headers=headers,
+                                    params={"media_code": media_code}, timeout=20)
+        except requests.exceptions.Timeout:
+            if attempt:
+                raise Exception("Instagram media API took too long to respond (over 20s).")
+            continue
+        except requests.exceptions.RequestException as e:
+            raise Exception(f"Could not reach Instagram media API: {e}")
+        if response.status_code != 200:
+            raise Exception(f"Media fetch failed with status {response.status_code}")
+        try:
+            data = response.json()
+        except ValueError:
+            data = None
+        if isinstance(data, dict) and data.get("code"):
+            break
+        # Seen on 2026-10-21: the provider answered {"error": "Media data not
+        # found. Try again later."} for every post for a while. One retry,
+        # then report what the provider actually said.
+        if attempt == 0:
+            time.sleep(1.5)
     if not isinstance(data, dict) or not data.get("code"):
-        raise Exception("Instagram returned no data for this post (deleted, private, or not found).")
+        said = data.get("error") if isinstance(data, dict) else None
+        raise Exception(f"Instagram's data service didn't return this post"
+                        + (f' ("{said}")' if said else "") + ".")
 
     user = data.get("user") or {}
     caption_obj = data.get("caption") or {}
@@ -235,6 +366,7 @@ def fetch_media_data(media_code: str) -> dict:
         "is_video":      bool(videos),
         "has_audio":     bool(data.get("has_audio", bool(videos))),
         "video_url":     videos[0].get("url", "") if videos else "",
+        "audio_url":     audio_url_from_manifest(data.get("video_dash_manifest")),
         "like_count":    data.get("like_count") or 0,
         "comment_count": data.get("comment_count") or 0,
         "taken_at":      data.get("taken_at"),

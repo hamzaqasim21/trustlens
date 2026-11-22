@@ -7,7 +7,7 @@ import './About.css'
 const STEPS = [
   {
     n: '01', tag: 'Ingest', swatch: 'ab-sw-blue', title: 'Real profile data',
-    body: 'The public profile, recent posts and captions are fetched live the moment you scan. Nothing is typed in by hand, and TrustLens never asks for anyone’s Instagram login.',
+    body: 'The public profile, recent posts, captions and the sound of the newest reels are fetched live the moment you scan. Nothing is typed in by hand, and TrustLens never asks for anyone’s Instagram login.',
   },
   {
     n: '02', tag: 'Analyse', swatch: 'ab-sw-purple', title: 'Four independent checks',
@@ -27,7 +27,8 @@ const STEPS = [
 // to ask about, so the site states it plainly rather than calling it all "AI".
 const MODULES = [
   { name: 'Fake-account detection', kind: 'AI model', tone: 'ink', what: 'A trained Random Forest judges whether the account itself looks fake from its own profile.', proof: '95.8% on a held-out test set' },
-  { name: 'Misinformation check', kind: 'AI + rules', tone: 'ink', what: 'A fine-tuned XLM-RoBERTa language model reads the bio and captions, in English and Urdu, cross-checked against hand-written scam patterns.', proof: '77% on a held-out test set' },
+  { name: 'Misinformation check', kind: 'AI + rules', tone: 'ink', what: 'A fine-tuned XLM-RoBERTa language model reads the bio, the captions and what is said in reels, in English and Urdu, cross-checked against hand-written scam patterns.', proof: '77% on a held-out test set' },
+  { name: 'Video-to-Text', kind: 'Pretrained AI', tone: 'outline', what: 'OpenAI’s Whisper speech model listens to the first 45 seconds of the newest reels and writes down what is said, so a scam spoken aloud can be caught. Speech labelled Hindi is written in Urdu script, which the language model reads.', proof: 'Used as-is, not trained by us' },
   { name: 'Engagement analysis', kind: 'Rules', tone: 'outline', what: 'Likes and comments per follower, compared with what’s typical for an account of that size.', proof: 'Transparent formula' },
   { name: 'Credential claims', kind: 'Rules', tone: 'outline', what: 'Finds claims like “Dr.”, “MBBS” or “CFA” in the bio. A doctor claim is looked up by name in the PMDC and US NPI public registers; other claims have no public register, so they are shown but not scored.', proof: 'Pattern matching + official registers' },
   { name: 'Trust Score', kind: 'Formula', tone: 'outline', what: 'A published weighted average of the checks that ran, with a cap when the account itself looks fake.', proof: 'Weights always total 100%' },

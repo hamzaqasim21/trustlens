@@ -13,6 +13,9 @@ import About from './pages/About'
 import Methodology from './pages/Methodology'
 import Extension from './pages/Extension'
 import NotFound from './pages/NotFound'
+import CreatorStudio from './pages/CreatorStudio'
+import BrandTools from './pages/BrandTools'
+import BadgeVerify from './pages/BadgeVerify'
 import AdminLayout from './pages/admin/AdminLayout'
 import AdminOverview from './pages/admin/AdminOverview'
 import AdminAppeals from './pages/admin/AdminAppeals'
@@ -43,6 +46,9 @@ function App() {
           <Route path="/about" element={<About />} />
           <Route path="/methodology" element={<Methodology />} />
           <Route path="/extension" element={<Extension />} />
+          <Route path="/creator" element={<CreatorStudio />} />
+          <Route path="/brand" element={<BrandTools />} />
+          <Route path="/badge/:code" element={<BadgeVerify />} />
 
           {/* Admin console. AdminLayout shows a 403 to non-admins, and every
               /admin API call is independently checked on the server. */}

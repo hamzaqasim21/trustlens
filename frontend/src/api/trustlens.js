@@ -1,6 +1,7 @@
 // Overridable at build time (VITE_API_BASE=...) for deploying the backend
 // somewhere other than this machine; local development needs nothing set.
 const API_BASE = import.meta.env.VITE_API_BASE || "http://127.0.0.1:8000"
+export const API_BASE_URL = API_BASE
 
 // The browser extension talks to its own local gateway, not the website's
 // backend. Kept as a separate base URL rather than hidden inside the page so
@@ -33,13 +34,13 @@ function httpError(message, status, kind) {
   return err
 }
 
-export async function analyzeProfile(username) {
+export async function analyzeProfile(username, { source } = {}) {
   let response
   try {
     response = await fetch(`${API_BASE}/analyze-live`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...authHeaders() },
-      body: JSON.stringify({ username }),
+      body: JSON.stringify(source ? { username, source } : { username }),
     })
   } catch {
     throw httpError("Can't reach the TrustLens server. Make sure the backend is running, then try again.", 0)
@@ -109,11 +110,11 @@ export async function getScanHistory(limit = 20) {
   return response.json()
 }
 
-export async function signup(fullName, email, password) {
+export async function signup(fullName, email, password, accountType = "personal") {
   const response = await fetch(`${API_BASE}/signup`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ full_name: fullName, email, password }),
+    body: JSON.stringify({ full_name: fullName, email, password, account_type: accountType }),
   })
 
   if (!response.ok) {
@@ -331,4 +332,37 @@ export const watchlistApi = {
   recheck: (id) => jsonCall(`/watchlist/${id}/recheck`, { method: 'POST' }),
   alerts: () => jsonCall('/alerts'),
   markAlertsRead: () => jsonCall('/alerts/read', { method: 'POST' }),
+}
+
+// Account type (scope §10: personal / creator / brand)
+export const setAccountType = (accountType) => jsonCall('/me', { method: 'PATCH', body: { account_type: accountType } })
+
+// Brand tools: bulk analysis runs the normal scan, recorded as "bulk"
+export const analyzeProfileBulk = (username) => analyzeProfile(username, { source: 'bulk' })
+export const apiKeysApi = {
+  list: () => jsonCall('/api-keys'),
+  create: (name) => jsonCall('/api-keys', { method: 'POST', body: { name } }),
+  revoke: (id) => jsonCall(`/api-keys/${id}`, { method: 'DELETE' }),
+}
+
+// Creator studio
+export const creatorApi = {
+  home: () => jsonCall('/creator'),
+  startClaim: (username) => jsonCall('/creator/claim', { method: 'POST', body: { username } }),
+  verifyClaim: () => jsonCall('/creator/claim/verify', { method: 'POST' }),
+  scan: () => jsonCall('/creator/scan', { method: 'POST' }),
+  issueBadge: () => jsonCall('/creator/badge', { method: 'POST' }),
+  downloadBadge: (code) => downloadFile(`/creator/badge/${code}.pdf`, `trustlens_badge_${code}.pdf`),
+}
+
+// Public: anyone can check a Trust Badge is genuine, no login needed
+export async function getPublicBadge(code) {
+  let response
+  try {
+    response = await fetch(`${API_BASE}/badges/${encodeURIComponent(code)}`)
+  } catch {
+    throw httpError("Can't reach the TrustLens server.", 0)
+  }
+  if (!response.ok) throw httpError(await parseErrorMessage(response), response.status)
+  return response.json()
 }

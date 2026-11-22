@@ -49,7 +49,6 @@ function BadgeVerify() {
               <ScoreRing score={b.trust_score} tone={toneFor(b.verdict)} size={200} />
               <dl className="bv-facts">
                 <div><dt>Verdict</dt><dd>{b.verdict}</dd></div>
-                <div><dt>Confidence</dt><dd>{b.confidence != null ? `${b.confidence}%` : 'n/a'}</dd></div>
                 <div><dt>Issued</dt><dd>{formatDate(b.issued_at)}</dd></div>
                 <div><dt>{b.expired ? 'Expired' : 'Valid until'}</dt><dd>{formatDate(b.expires_at)}</dd></div>
               </dl>

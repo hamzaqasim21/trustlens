@@ -45,6 +45,11 @@ class User(Base):
     # token they already hold stops working on its next request.
     is_active = Column(Boolean, default=True)
     last_login_at = Column(DateTime, nullable=True)
+    # Scope §10 user types: "personal" (normal user), "creator" (influencer)
+    # or "brand" (brand / agency). Chosen at signup, changeable in Settings.
+    # Separate from `role` on purpose: admin is a permission, this is what
+    # kind of dashboard the person gets.
+    account_type = Column(String, default="personal")
 
 
 class VerificationCode(Base):
@@ -91,8 +96,9 @@ class ScanHistory(Base):
     corrected_trust_score = Column(Float, nullable=True)
     corrected_verdict = Column(String, nullable=True)
 
-    # Where the scan came from: "web" (someone pressed Scan) or "watchlist"
-    # (an automatic re-check of a watched account).
+    # Where the scan came from: "web" (someone pressed Scan), "watchlist"
+    # (an automatic re-check of a watched account), "bulk" (a brand's bulk
+    # analysis), "api" (a brand's API key) or "creator" (Creator studio).
     source = Column(String, default="web")
 
 
@@ -175,6 +181,56 @@ class Alert(Base):
     emailed = Column(Boolean, default=False)
 
 
+class ApiKey(Base):
+    """A brand account's API key. Only the SHA-256 hash is stored; the key
+    itself is shown once, when it is made, and can never be read back."""
+    __tablename__ = "api_keys"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), index=True)
+    name = Column(String)
+    prefix = Column(String)          # first characters, so the owner can tell keys apart
+    key_hash = Column(String, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    last_used_at = Column(DateTime, nullable=True)
+    revoked = Column(Boolean, default=False)
+
+
+class CreatorClaim(Base):
+    """A creator proving they own an Instagram account by putting a one-off
+    code in its bio. pending -> verified (or superseded when someone else
+    later proves ownership of the same account)."""
+    __tablename__ = "creator_claims"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), index=True)
+    username = Column(String, index=True)
+    code = Column(String)
+    status = Column(String, default="pending")
+    created_at = Column(DateTime, default=datetime.utcnow)
+    verified_at = Column(DateTime, nullable=True)
+
+
+class TrustBadge(Base):
+    """A Trust Badge certificate a creator can hand to brands. The public
+    page /badge/<code> shows this record, so a brand can check it's real."""
+    __tablename__ = "trust_badges"
+
+    id = Column(Integer, primary_key=True, index=True)
+    code = Column(String, unique=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), index=True)
+    username = Column(String)
+    scan_id = Column(Integer, ForeignKey("scan_history.id"))
+    trust_score = Column(Float)
+    verdict = Column(String)
+    # Left over from the confidence feature (set aside 2026-09-29). Kept so the
+    # existing table still matches; new badges leave it empty.
+    confidence = Column(Integer, nullable=True)
+    issued_at = Column(DateTime, default=datetime.utcnow)
+    expires_at = Column(DateTime)
+    revoked = Column(Boolean, default=False)
+
+
 # Columns added to tables that already exist on people's machines.
 # create_all() only creates *missing tables*; it never alters an existing one,
 # so without this an existing trustlens.db would crash on the first query
@@ -185,6 +241,7 @@ _ADDED_COLUMNS = {
         "role": "VARCHAR DEFAULT 'user'",
         "is_active": "BOOLEAN DEFAULT TRUE",
         "last_login_at": "TIMESTAMP",
+        "account_type": "VARCHAR DEFAULT 'personal'",
     },
     "scan_history": {
         "corrected_trust_score": "FLOAT",

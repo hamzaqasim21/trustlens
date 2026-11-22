@@ -8,14 +8,15 @@ import { useAuth } from '../context/AuthContext'
 import { parseUsername, USERNAME_HELP } from '../lib/scanFlow'
 import { toneFor } from '../lib/verdict'
 import { SERIES_COLORS } from '../lib/charting'
+import { ModuleRadar, ScoreBars } from '../components/charts/ComparisonCharts'
 import './Comparison.css'
 
 // Influencer Comparison Engine (scope §6.10): "two or more public influencer
 // usernames ... side-by-side comparison across all forensic metrics ...
 // Trust Score, bot percentage, misinformation flag count, engagement
 // authenticity rating, and credential confidence score ... structured table
-// ... and can be exported as a PDF report."
-// Up to four, so the table stays readable.
+// and radar chart format, and can be exported as a PDF report."
+// Up to four, so the table and the radar stay readable.
 const MAX = 4
 
 const scoreOf = (r) => r.trust_score.trust_score
@@ -61,6 +62,9 @@ const ROWS = [
     num: misinfoFlagCount, better: 'low' },
   { label: 'Engagement authenticity', show: engagementRating,
     num: (r) => r.engagement_analysis.engagement_score, better: 'high' },
+  { label: 'Reel speech counted', show: (r) => (r.video_transcription
+    ? `${r.video_transcription.reels_counted} of ${r.video_transcription.reels_listened} reels heard`
+    : 'n/a') },
   { label: 'Comment authenticity', show: (r) => r.comment_authenticity?.verdict || 'n/a' },
   { label: 'Credential confidence', show: credentialText },
   { group: 'Profile' },
@@ -202,7 +206,7 @@ function Comparison() {
           <h1 className="tl-display cmp-title">This<br /><span className="tl-grad-text">or that?</span></h1>
           <p className="tl-lede">
             Choosing between creators for a campaign? Every account goes through the same four checks, side by side,
-            with a PDF report you can share. Each one is a real scan, saved to your dashboard.
+            with a radar chart, a bar chart and a PDF report you can share. Each one is a real scan, saved to your dashboard.
           </p>
 
           <form className="cmp-form-multi" onSubmit={handleCompare} noValidate>
@@ -290,6 +294,12 @@ function Comparison() {
                   </Reveal>
                 ))}
               </div>
+              <Reveal>
+                <div className="ch-grid cmp-charts">
+                  <ScoreBars items={results.map((r) => ({ name: `@${r.username}`, score: scoreOf(r) }))} />
+                  <ModuleRadar series={results.map((r) => ({ name: `@${r.username}`, moduleScores: r.trust_score.module_scores }))} />
+                </div>
+              </Reveal>
               <Reveal><ComparisonTable results={results} /></Reveal>
             </>
           )}

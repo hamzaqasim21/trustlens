@@ -1,9 +1,9 @@
 import { ACCOUNT_TYPES } from '../lib/accountTypes'
 import './AccountTypePicker.css'
 
-function AccountTypePicker({ value, onChange, disabled = false, name = 'account-type' }) {
+function AccountTypePicker({ value, onChange, disabled = false, name = 'account-type', stacked = false }) {
   return (
-    <div className="atp" role="radiogroup" aria-label="Account type">
+    <div className={`atp ${stacked ? 'atp-stacked' : ''}`} role="radiogroup" aria-label="Account type">
       {ACCOUNT_TYPES.map((t) => (
         <label key={t.id} className={`atp-option ${value === t.id ? 'is-on' : ''}`}>
           <input

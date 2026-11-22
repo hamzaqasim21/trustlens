@@ -39,7 +39,41 @@ export function parseUsername(input) {
 }
 
 export const USERNAME_HELP =
-  'Enter an Instagram username like @lahore.eats, or paste a profile link. Post and reel links don’t say whose account it is, so use the profile link.'
+  'Enter an Instagram username like @lahore.eats, or paste a profile link.'
+
+// The scan box also takes a post or reel link: the backend looks up who
+// posted it, scans that account, and always listens to that reel
+// (scope: "pastes a profile or reel link to receive a Trust Score report").
+const POST_RE = /instagram\.com\/(?:([A-Za-z0-9._]{1,30})\/)?(reels?|p|tv)\/([A-Za-z0-9_-]{5,40})/i
+
+/**
+ * What the scan box was given: { kind: 'username', username, query } or
+ * { kind: 'post', code, owner, isReel, query }, or null. `query` is what is
+ * sent to the backend (and kept in the address bar while scanning).
+ */
+export function parseScanTarget(input) {
+  const s = (input || '').trim()
+  if (!s) return null
+  const m = s.match(POST_RE)
+  if (m) {
+    const owner = m[1] && !NOT_ACCOUNTS.has(m[1].toLowerCase()) ? m[1].toLowerCase() : null
+    const isReel = m[2].toLowerCase() !== 'p'
+    const path = `${isReel ? 'reel' : 'p'}/${m[3]}/`
+    return { kind: 'post', code: m[3], owner, isReel, query: `instagram.com/${owner ? `${owner}/` : ''}${path}` }
+  }
+  const username = parseUsername(s)
+  return username ? { kind: 'username', username, query: username } : null
+}
+
+/** How to name a scan target in a sentence: "@name", "this reel" or "this post". */
+export function targetLabel(target) {
+  if (!target) return ''
+  if (target.kind === 'username') return `@${target.username}`
+  return target.isReel ? 'this reel' : 'this post'
+}
+
+export const SCAN_HELP =
+  'Enter an Instagram username like @lahore.eats, or paste a profile, post or reel link.'
 
 export function savePendingScan(username) {
   try { sessionStorage.setItem(PENDING_KEY, username) } catch { /* storage blocked: the user just types it again */ }

@@ -8,6 +8,7 @@ const MEASUREMENT = {
   live: { tone: 'green', text: 'Measured live, just now' },
   recorded: { tone: 'neutral', text: 'Recorded at training time' },
   none: { tone: 'neutral', text: 'No accuracy figure — not a trained model' },
+  pretrained: { tone: 'neutral', text: 'Pretrained by OpenAI — used as-is, no accuracy measured by us' },
 }
 
 function fileSize(bytes) {

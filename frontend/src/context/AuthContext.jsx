@@ -43,8 +43,8 @@ export function AuthProvider({ children }) {
 
   // Creates the account. Never logs in directly — always returns
   // { requires_verification, email, message }; verifyCode() finishes it.
-  async function signup(fullName, email, password) {
-    return apiSignup(fullName, email, password)
+  async function signup(fullName, email, password, accountType) {
+    return apiSignup(fullName, email, password, accountType)
   }
 
   // Confirms the emailed code — for both a fresh signup and a resent code

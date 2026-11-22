@@ -3,7 +3,7 @@ import { Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import PageShell from '../components/site/PageShell'
 import { useAuth } from '../context/AuthContext'
 import { analyzeProfile } from '../api/trustlens'
-import { clearPendingScan, parseUsername, savePendingScan, scanPath, USERNAME_HELP } from '../lib/scanFlow'
+import { clearPendingScan, parseScanTarget, savePendingScan, scanPath, SCAN_HELP, targetLabel } from '../lib/scanFlow'
 import './ScanPage.css'
 
 // ---------------------------------------------------------------------------
@@ -48,7 +48,8 @@ const STEPS = [
   ['Recent posts', 'Likes, comments and captions from the latest posts'],
   ['Fake-account model', 'Trained Random Forest on the account’s own profile'],
   ['Engagement', 'Interaction rate against what’s normal for its size'],
-  ['Misinformation', 'Language model on the bio and every caption, cross-checked with scam rules'],
+  ['Reel speech', 'Whisper listens to the newest reels and writes down what is said'],
+  ['Misinformation', 'Language model on the bio, every caption and the reel speech, cross-checked with scam rules'],
   ['Credential claims', '“Dr.”, “MBBS”, “CFA” and similar in the bio'],
   ['Trust Score', 'Every check that ran, weighed into one score'],
 ]
@@ -60,12 +61,12 @@ function ScanForm({ initial = '' }) {
 
   function submit(e) {
     e.preventDefault()
-    const name = parseUsername(value)
-    if (!name) {
-      setError(value.trim() ? USERNAME_HELP : 'Type a username first, for example @lahore.eats')
+    const target = parseScanTarget(value)
+    if (!target) {
+      setError(value.trim() ? SCAN_HELP : 'Type a username first, for example @lahore.eats')
       return
     }
-    navigate(scanPath(name))
+    navigate(scanPath(target.query))
   }
 
   return (
@@ -74,17 +75,20 @@ function ScanForm({ initial = '' }) {
       <div className="tl-wrap-narrow sc-start-inner">
         <span className="tl-eyebrow">New scan</span>
         <h1 className="tl-display sc-start-title">Who are we<br /><span className="tl-grad-text">checking?</span></h1>
-        <p className="tl-lede">Any public Instagram account. Paste the username or the profile link.</p>
+        <p className="tl-lede">
+          Any public Instagram account. Type the username, or paste a profile link. Paste a reel link and we scan
+          whoever posted it, and listen to that reel too.
+        </p>
 
         <form className="sc-start-form" onSubmit={submit} noValidate>
-          <label htmlFor="sc-username" className="sc-sr">Instagram username or profile link</label>
+          <label htmlFor="sc-username" className="sc-sr">Instagram username, profile link or reel link</label>
           <div className="tl-scanbar">
             <span className="tl-scanbar-at" aria-hidden="true">@</span>
             <input
               id="sc-username"
               value={value}
               onChange={(e) => { setValue(e.target.value); setError('') }}
-              placeholder="username or instagram.com/username"
+              placeholder="username, profile link or reel link"
               autoComplete="off"
               spellCheck="false"
               autoFocus
@@ -106,7 +110,9 @@ function ScanForm({ initial = '' }) {
 
 // Keyed by username + attempt in the parent, so "Try again" mounts a fresh
 // copy with clean state rather than resetting state inside the effect.
-function Scanning({ username, onRetry }) {
+function Scanning({ target, onRetry }) {
+  const query = target.query
+  const label = targetLabel(target)
   const navigate = useNavigate()
   const [error, setError] = useState(null)
   const [elapsed, setElapsed] = useState(0)
@@ -117,7 +123,7 @@ function Scanning({ username, onRetry }) {
     const started = Date.now()
     const tick = setInterval(() => setElapsed(Math.floor((Date.now() - started) / 1000)), 250)
 
-    runScan(username)
+    runScan(query)
       .then((result) => {
         if (cancelled) return
         clearPendingScan()
@@ -133,7 +139,7 @@ function Scanning({ username, onRetry }) {
         if (cancelled) return
         if (err.status === 401) {
           // Session ran out mid-way: keep the username and go log in again.
-          savePendingScan(username)
+          savePendingScan(query)
           navigate('/login', { replace: true, state: { reason: 'expired' } })
           return
         }
@@ -146,7 +152,7 @@ function Scanning({ username, onRetry }) {
       cancelled = true
       clearInterval(tick)
     }
-  }, [username, navigate])
+  }, [query, navigate])
 
   if (error) {
     // "not_found" means the username itself is the problem — a real answer
@@ -155,19 +161,26 @@ function Scanning({ username, onRetry }) {
     // telling someone to "check the spelling" when the real cause was a
     // network stall (or the reverse) is its own kind of misleading.
     const notFound = error.kind === 'not_found'
+    const isPost = target.kind === 'post'
     return (
       <section className="sc-run">
         <div className="tl-wrap-narrow">
           <div className="sc-fail tl-card tl-card-pad">
-            <span className="tl-chip tl-chip-bad">{notFound ? 'Account not found' : 'Scan didn’t finish'}</span>
+            <span className="tl-chip tl-chip-bad">
+              {notFound ? (isPost ? 'Post not found' : 'Account not found') : 'Scan didn’t finish'}
+            </span>
             <h1 className="tl-display sc-fail-title">
-              {notFound ? `@${username} doesn’t exist on Instagram.` : `We couldn’t check @${username}.`}
+              {notFound
+                ? (isPost ? `We couldn’t find ${label}.` : `${label} doesn’t exist on Instagram.`)
+                : `We couldn’t check ${label}.`}
             </h1>
             <p className="tl-lede">{error.message}</p>
             <p className="sc-fail-tips">
               {notFound
-                ? 'Double-check the spelling and try again — this isn’t a network problem, Instagram told us this account doesn’t exist.'
-                : 'This looks like Instagram or the network being slow, not a problem with the username. A second try usually works.'}
+                ? (isPost
+                  ? 'The post may be private or deleted. If you know whose it is, scan their username instead.'
+                  : 'Double-check the spelling and try again — this isn’t a network problem, Instagram told us this account doesn’t exist.')
+                : 'This looks like Instagram or the network being slow, not a problem with what you typed. A second try usually works.'}
             </p>
             <div className="sc-fail-actions">
               <button className="tl-btn tl-btn-grad" onClick={onRetry}>Try again</button>
@@ -188,12 +201,14 @@ function Scanning({ username, onRetry }) {
           <h1 className="tl-display sc-run-title">
             {done ? 'Done.' : 'Looking closer at'}
             <br />
-            <span className="tl-grad-text">@{username}</span>
+            <span className="tl-grad-text">{label}</span>
           </h1>
           <p className="tl-lede">
             {done
               ? 'Opening the full result…'
-              : 'Every number on the result comes from one of these checks. The timer below shows how long this scan has taken so far.'}
+              : (target.kind === 'post'
+                ? 'First we find who posted it, then run every check on that account and listen to this reel. The timer shows how long this scan has taken so far.'
+                : 'Every number on the result comes from one of these checks. The timer below shows how long this scan has taken so far.')}
           </p>
           <div className="sc-timer">
             {!done && <span className="tl-spinner" aria-hidden="true" />}
@@ -232,7 +247,7 @@ function ScanPage() {
   const [params] = useSearchParams()
   const [attempt, setAttempt] = useState(0)
   const raw = params.get('u')
-  const username = raw ? parseUsername(raw) : null
+  const target = raw ? parseScanTarget(raw) : null
 
   if (loading) {
     return <PageShell title="Scan" footer={false}><div className="sc-loading"><span className="tl-spinner" /></div></PageShell>
@@ -241,17 +256,17 @@ function ScanPage() {
   // Scanning needs an account. Remember who they asked about, and go.
   if (!user) {
     if (signedOut) return <Navigate to="/" replace />
-    if (username) {
-      savePendingScan(username)
+    if (target) {
+      savePendingScan(target.query)
       return <Navigate to="/signup" replace />
     }
     return <Navigate to="/login" replace state={{ from: '/scan' }} />
   }
 
   return (
-    <PageShell title={username ? `Scanning @${username}` : 'New scan'} className="sc-page" footer={!username}>
-      {username
-        ? <Scanning key={`${username}-${attempt}`} username={username} onRetry={() => setAttempt((a) => a + 1)} />
+    <PageShell title={target ? `Scanning ${targetLabel(target)}` : 'New scan'} className="sc-page" footer={!target}>
+      {target
+        ? <Scanning key={`${target.query}-${attempt}`} target={target} onRetry={() => setAttempt((a) => a + 1)} />
         : <ScanForm initial={raw || ''} />}
     </PageShell>
   )

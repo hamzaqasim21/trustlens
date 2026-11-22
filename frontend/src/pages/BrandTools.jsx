@@ -101,7 +101,6 @@ function BulkAnalysis() {
                   <th scope="col">Account</th>
                   <th scope="col">Trust Score</th>
                   <th scope="col">Verdict</th>
-                  <th scope="col">Confidence</th>
                   <th scope="col">Bot %</th>
                   <th scope="col">Misinfo flags</th>
                   <th scope="col">Engagement</th>
@@ -125,8 +124,7 @@ function BulkAnalysis() {
                       {r.status === 'done' ? (
                         <>
                           <td><strong className={`br-score br-${tone}`}>{res.trust_score.trust_score}</strong></td>
-                          <td><span className={`tl-chip tl-chip-${tone}`}>{res.confidence?.needs_review ? 'Needs review' : res.trust_score.verdict}</span></td>
-                          <td>{res.confidence ? `${res.confidence.confidence}% ${res.confidence.label}` : 'n/a'}</td>
+                          <td><span className={`tl-chip tl-chip-${tone}`}>{res.trust_score.verdict}</span></td>
                           <td>{res.fake_follower_analysis.bot_percentage}%</td>
                           <td>{flags}</td>
                           <td>{res.engagement_analysis.engagement_score == null ? 'Not measured' : `${res.engagement_analysis.engagement_rate}% · ${res.engagement_analysis.status}`}</td>
@@ -136,7 +134,7 @@ function BulkAnalysis() {
                           </td>
                         </>
                       ) : (
-                        <td colSpan={7} className={`br-status br-status-${r.status}`}>
+                        <td colSpan={6} className={`br-status br-status-${r.status}`}>
                           {r.status === 'waiting' && 'Waiting…'}
                           {r.status === 'scanning' && <><span className="tl-spinner br-spin" /> Scanning…</>}
                           {r.status === 'failed' && r.error}
@@ -268,7 +266,7 @@ function ApiKeys() {
   -H "X-API-Key: ${example}" -H "Content-Type: application/json" \\
   -d '{"username": "natgeo"}'`}</pre>
         <p className="tl-hint">
-          Returns the full result (trust_score, confidence, every module). Fetch a saved one again with
+          Returns the full result (trust_score and every module). Fetch a saved one again with
           GET <code>/api/v1/scans/&lt;scan_id&gt;</code>. Errors: 401 bad key, 404 no such account, 429 daily limit.
           Full reference: <a className="tl-link" href={`${API_BASE_URL}/docs`} target="_blank" rel="noreferrer">{API_BASE_URL}/docs</a>
         </p>
@@ -314,7 +312,7 @@ function BrandTools() {
                 <div className="br-card-head">
                   <span className="tl-chip tl-chip-ink tl-chip-plain">Export</span>
                   <h2>Everything you’ve scanned</h2>
-                  <p className="tl-muted">One CSV row per scan, with the score, confidence and every module’s numbers.</p>
+                  <p className="tl-muted">One CSV row per scan, with the score, verdict and every module’s numbers.</p>
                 </div>
                 <button className="tl-btn tl-btn-outline" onClick={() => downloadScansCsv().catch(() => {})}>Download all scans as CSV</button>
               </div>

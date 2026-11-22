@@ -21,6 +21,14 @@ function uncorroboratedScamLabels(sources) {
   ).length
 }
 
+// Where a misinformation result came from, in words.
+function sourceName(source, { capital = false } = {}) {
+  const name = source === 'caption' ? 'a post caption'
+    : source === 'reel_speech' ? 'what was said in a reel'
+    : 'the bio'
+  return capital ? name.charAt(0).toUpperCase() + name.slice(1) : name
+}
+
 // ---- Plain-language interpretation helpers ----
 // These translate real computed numbers into a sentence a non-technical
 // reader can follow. The thresholds mirror the same logic the backend's
@@ -96,13 +104,18 @@ function buildSummary(result) {
     const checked = misinfoSources.length
     const scope = `${checked} text${checked === 1 ? '' : 's'}`
     if (misinfo.misinformation_flag) {
-      const where = misinfo.source === 'caption' ? 'a caption' : 'the bio'
-      parts.push(`${String(misinfo.primary_category).replace(/_/g, ' ')} flagged in ${where} (${scope} checked)`)
+      parts.push(`${String(misinfo.primary_category).replace(/_/g, ' ')} flagged in ${sourceName(misinfo.source)} (${scope} checked)`)
     } else {
       parts.push(`no misinformation across ${scope} checked`)
     }
   } else {
-    parts.push('no bio or caption text was available to check')
+    parts.push('no bio, caption or reel speech was available to check')
+  }
+
+  // Reel speech (Video-to-Text): only mentioned when reels were listened to.
+  const vt = result.video_transcription
+  if (vt && vt.reels_listened > 0) {
+    parts.push(`${vt.reels_listened} reel${vt.reels_listened === 1 ? ' was' : 's were'} listened to (speech from ${vt.reels_counted} counted)`)
   }
 
   // Only mentioned when the bio actually claims something, since "no
@@ -306,9 +319,9 @@ function ModuleCards({ result, onOpen }) {
           sub={
             misinfoRan
               ? (misinfo.misinformation_flag
-                ? `${String(misinfo.primary_category).replace(/_/g, ' ')} in ${misinfo.source === 'caption' ? 'a caption' : 'the bio'} (${sources.length} texts read)`
+                ? `${String(misinfo.primary_category).replace(/_/g, ' ')} in ${sourceName(misinfo.source)} (${sources.length} texts read)`
                 : `nothing concerning in ${sources.length} text${sources.length === 1 ? '' : 's'}${setAside ? `; ${setAside} unsupported AI “scam” label${setAside === 1 ? '' : 's'} set aside` : ''}`)
-              : 'No bio or caption text to read'
+              : 'No bio, caption or reel speech to read'
           }
           chip={misinfoRan ? (misinfo.misinformation_flag ? 'Flagged' : 'Credible') : null}
           chipTone={misinfoRan ? (misinfo.misinformation_flag ? 'bad' : 'ok') : 'neutral'}
@@ -436,16 +449,16 @@ function ScoreBreakdown({ result }) {
 
       <BreakdownModule
         id="misinformation"
-        title="Misinformation (bio + captions)"
+        title="Misinformation (bio, captions and reel speech)"
         score={misinfoScore}
         weight={weights.misinformation ?? 0}
         badgeText={misinfoApplicable ? (misinfo.misinformation_flag ? 'Flagged' : 'Credible') : null}
         badgeTone={misinfoApplicable && misinfo.misinformation_flag ? 'bad' : 'ok'}
         explanation={misinfoApplicable ? (
-          `Checked ${misinfoSources.length} piece${misinfoSources.length === 1 ? '' : 's'} of text (bio + recent post captions) with an AI classifier, ` +
+          `Checked ${misinfoSources.length} piece${misinfoSources.length === 1 ? '' : 's'} of text (bio, recent post captions and the clear speech in recent reels) with an AI classifier, ` +
           'cross-checked against rule-based scam patterns (such as "guaranteed returns", impossible claims and disguised links). ' +
           (misinfo.misinformation_flag
-            ? `The worst result came from ${misinfo.source === 'caption' ? 'a post caption' : 'the bio'}: "${misinfo.text_preview}", counted as "${misinfo.primary_category.replace(/_/g, ' ')}". ${misinfo.note || ''}`
+            ? `The worst result came from ${sourceName(misinfo.source)}: "${misinfo.text_preview}", counted as "${misinfo.primary_category.replace(/_/g, ' ')}". ${misinfo.note || ''}`
             : 'Nothing concerning was counted.') +
           (setAside > 0
             ? ` The AI also labelled ${setAside} ${setAside === 1 ? 'text' : 'texts'} "financial scam" without any concrete scam wording in ${setAside === 1 ? 'it' : 'them'}; ` +
@@ -453,17 +466,17 @@ function ScoreBreakdown({ result }) {
             : '')
         ) : null}
         metrics={misinfoApplicable ? [
-          ['Worst result source', misinfo.source === 'caption' ? 'Post caption' : 'Bio'],
+          ['Worst result source', sourceName(misinfo.source, { capital: true })],
           ['Counted as', misinfo.primary_category?.replace(/_/g, ' ')],
           ['AI label on its own', misinfo.model_category?.replace(/_/g, ' ') ?? 'n/a'],
           ['Scam patterns found', misinfo.red_flags?.length ? misinfo.red_flags.map((f) => f.title).join(', ') : 'none'],
           ['Risk score', `${misinfo.risk_score}/100`],
           ...misinfoSources
             .filter((s) => s.status === 'success' && s.misinformation_flag && s !== misinfo)
-            .map((s) => [`Also counted (${s.source})`, `"${s.text_preview}", ${s.primary_category.replace(/_/g, ' ')}`]),
+            .map((s) => [`Also counted (${sourceName(s.source)})`, `"${s.text_preview}", ${s.primary_category.replace(/_/g, ' ')}`]),
         ] : []}
         inactiveNote={misinfoApplicable ? null :
-          'This profile had no bio and no post captions to check, so its weight went to the checks that did run rather than guessing a score. (Speech in reels is the one input from the scope document that isn’t wired in yet.)'}
+          'This profile had no bio, no post captions and no clear reel speech to check, so its weight went to the checks that did run rather than guessing a score.'}
       />
 
       <BreakdownModule
@@ -507,6 +520,9 @@ function ScanLog({ result }) {
     ['Posts on profile', result.raw_profile_data.posts?.toLocaleString?.() ?? 'n/a'],
     ['Fake-account likelihood', `${result.fake_follower_analysis.bot_percentage}%`],
     ['Texts read for misinformation', String((result.misinformation_sources || []).length)],
+    ...(result.video_transcription
+      ? [['Reels listened to', `${result.video_transcription.reels_listened} of ${result.video_transcription.reels_with_sound} with sound`]]
+      : []),
     ['Instagram verification', result.is_verified ? 'Verified account' : 'Not verified'],
   ]
   const [shown, setShown] = useState(0)
@@ -532,6 +548,110 @@ function ScanLog({ result }) {
         ))}
       </ul>
     </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Video-to-Text (Module 12): what was said in the reels
+// ---------------------------------------------------------------------------
+const QUALITY = {
+  good: { chip: 'Clear speech', tone: 'ok' },
+  rough: { chip: 'Unclear speech', tone: 'warn' },
+  none: { chip: 'No speech', tone: 'outline' },
+}
+
+function ReelVerdict({ item }) {
+  if (!item.available) return <p className="rs-reel-status">{item.not_counted_reason || item.error}</p>
+  if (item.counted) {
+    const a = item.assessment
+    return (
+      <p className="rs-reel-status">
+        <span className={`tl-chip tl-chip-${a.misinformation_flag ? 'bad' : 'ok'}`}>
+          {a.misinformation_flag ? String(a.primary_category).replace(/_/g, ' ') : 'Credible'}
+        </span>
+        Checked for misinformation like a caption{a.red_flags?.length ? `: ${a.red_flags.map((f) => f.title.toLowerCase()).join(', ')}` : ''}.
+        Risk {a.risk_score}/100.
+      </p>
+    )
+  }
+  return (
+    <p className="rs-reel-status">
+      {item.assessment && (
+        <span className="tl-chip tl-chip-outline">AI said: {String(item.assessment.primary_category).replace(/_/g, ' ')}</span>
+      )}
+      Not scored: {item.not_counted_reason}.
+    </p>
+  )
+}
+
+function ReelCard({ item }) {
+  const q = QUALITY[item.quality] || null
+  return (
+    <article className="rs-reel tl-card">
+      <header className="rs-reel-head">
+        <a className="rs-reel-link tl-mono" href={item.url} target="_blank" rel="noopener noreferrer">
+          reel/{item.code} ↗
+        </a>
+        <span className="rs-reel-chips">
+          {item.submitted && <span className="tl-chip tl-chip-ink">The reel you pasted</span>}
+          {item.available && item.language_name && (
+            <span className="tl-chip tl-chip-outline">{item.language_name}</span>
+          )}
+          {item.available && q && <span className={`tl-chip tl-chip-${q.tone}`}>{q.chip}</span>}
+          {!item.available && <span className="tl-chip tl-chip-outline">Not listened to</span>}
+        </span>
+      </header>
+
+      {item.available && item.text && (
+        <blockquote className="rs-reel-text" dir="auto" lang={item.language || undefined}>{item.text}</blockquote>
+      )}
+      {item.available && !item.text && <p className="rs-reel-empty">{item.quality_note}</p>}
+
+      <ReelVerdict item={item} />
+
+      {item.available && (
+        <footer className="rs-reel-foot tl-mono">
+          {item.listened_seconds}s heard{item.audio_seconds > item.listened_seconds ? ` of ${Math.round(item.audio_seconds)}s` : ''}
+          {' · '}{item.engine}{item.via ? ` · ${item.via}` : ''}
+          {item.language_corrected ? ' · labelled Hindi, written as Urdu' : ''}
+          {item.script_converted ? ' · Hindi script converted' : ''}
+        </footer>
+      )}
+    </article>
+  )
+}
+
+function ReelSpeech({ result }) {
+  const vt = result.video_transcription
+  if (!vt) return null   // scans saved before this module existed
+  return (
+    <section className="tl-band rs-reels">
+      <div className="tl-wrap">
+        <div className="rs-reels-head">
+          <div>
+            <span className="tl-eyebrow">Video-to-Text</span>
+            <h2 className="tl-display rs-sec-title">What the reels<br />actually say.</h2>
+          </div>
+          <div className="rs-reels-copy">
+            <p className="tl-lede">
+              A scam pitched out loud never appears in a caption. So Whisper, a pretrained speech model, listens to the
+              first {Math.round(vt.seconds_per_reel)} seconds of this account’s newest reels and writes down what is said.
+              Clear English speech is checked by the same misinformation model as the captions. Urdu speech is checked too,
+              but only counts when concrete scam wording backs the model up. Other languages, and unclear speech, are
+              shown but never scored, because the model was only trained on English and Urdu.
+            </p>
+            <p className="rs-reels-msg">{vt.message}</p>
+          </div>
+        </div>
+        {vt.items.length > 0 && (
+          <div className="rs-reels-list">
+            {vt.items.map((item, i) => (
+              <Reveal key={item.code} delay={i * 80}><ReelCard item={item} /></Reveal>
+            ))}
+          </div>
+        )}
+      </div>
+    </section>
   )
 }
 
@@ -606,6 +726,19 @@ function ResultView({ result }) {
               </div>
             </div>
 
+            {result.submitted_post && (
+              <p className="tl-alert tl-alert-grad rs-submitted">
+                <span>
+                  You pasted a link to{' '}
+                  <a href={result.submitted_post.url} target="_blank" rel="noopener noreferrer">
+                    {result.submitted_post.is_video === false ? 'a post' : 'a reel'}
+                  </a>{' '}
+                  by @{result.username}, so this is that account’s Trust Score
+                  {result.submitted_post.is_video ? ', and that reel was listened to first' : ''}.
+                </span>
+              </p>
+            )}
+
             <h1 className="tl-display rs-verdict">{verdict}.</h1>
 
             <div className="rs-summary">
@@ -652,6 +785,8 @@ function ResultView({ result }) {
           <ModuleCards result={result} onOpen={openModule} />
         </div>
       </section>
+
+      <ReelSpeech result={result} />
 
       <section className="tl-band rs-breakdown" ref={breakdownRef}>
         <div className="tl-wrap-narrow">

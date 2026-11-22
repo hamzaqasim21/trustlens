@@ -60,6 +60,10 @@ function SiteNav() {
     logout()
   }
 
+  // Creator and brand accounts get their own dashboard (scope §10).
+  const roleLink = user?.account_type === 'creator' ? { to: '/creator', label: 'Creator studio' }
+    : user?.account_type === 'brand' ? { to: '/brand', label: 'Brand tools' } : null
+
   const firstName = user?.full_name?.split(' ')[0] || 'Account'
   const initial = (user?.full_name || user?.email || '?').charAt(0).toUpperCase()
 
@@ -92,6 +96,14 @@ function SiteNav() {
               >
                 Dashboard
               </NavLink>
+              {roleLink && (
+                <NavLink
+                  to={roleLink.to}
+                  className={({ isActive }) => `tl-nav-link tl-hide-mobile ${isActive ? 'is-active' : ''}`}
+                >
+                  {roleLink.label}
+                </NavLink>
+              )}
               <div className="tl-account" ref={menuRef}>
                 <button
                   type="button"
@@ -111,6 +123,7 @@ function SiteNav() {
                       <span>{user.email}</span>
                     </div>
                     <Link role="menuitem" to="/dashboard" className="tl-account-item">Dashboard</Link>
+                    {roleLink && <Link role="menuitem" to={roleLink.to} className="tl-account-item">{roleLink.label}</Link>}
                     <Link role="menuitem" to="/scan" className="tl-account-item">New scan</Link>
                     <Link role="menuitem" to="/settings" className="tl-account-item">Settings</Link>
                     {user.role === 'admin' && (
@@ -140,6 +153,7 @@ function SiteNav() {
       <div className={`tl-mobile-panel ${mobileOpen ? 'is-open' : ''}`}>
         <div className="tl-wrap">
           {user && <NavLink to="/dashboard" className="tl-nav-link">Dashboard</NavLink>}
+          {roleLink && <NavLink to={roleLink.to} className="tl-nav-link">{roleLink.label}</NavLink>}
           {LINKS.map((l) => (
             <NavLink key={l.to} to={l.to} className="tl-nav-link">{l.label}</NavLink>
           ))}

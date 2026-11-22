@@ -3,7 +3,6 @@ import { Link, Navigate } from 'react-router-dom'
 import PageShell from '../components/site/PageShell'
 import ScoreRing from '../components/site/ScoreRing'
 import RoleGate from '../components/RoleGate'
-import { ConfidenceBlock } from '../components/ResultExtras'
 import { creatorApi } from '../api/trustlens'
 import { useAuth } from '../context/AuthContext'
 import { parseUsername, USERNAME_HELP } from '../lib/scanFlow'
@@ -159,9 +158,8 @@ function Report({ home, onChanged }) {
             <div className="cs-card tl-card tl-card-pad cs-score">
               <span className="tl-chip tl-chip-ink tl-chip-plain">Your Trust Score</span>
               <ScoreRing score={scan.trust_score} tone={tone} size={200} />
-              <span className={`tl-chip tl-chip-${tone}`}>{scan.confidence?.needs_review ? 'Needs review' : scan.verdict}</span>
+              <span className={`tl-chip tl-chip-${tone}`}>{scan.verdict}</span>
               <span className="tl-hint">From your report on {formatDate(scan.scanned_at)}</span>
-              <ConfidenceBlock confidence={scan.confidence} />
             </div>
 
             <div className="cs-card tl-card tl-card-pad">
@@ -192,7 +190,7 @@ function Report({ home, onChanged }) {
               <span className="tl-chip tl-chip-ink tl-chip-plain">Trust Badge</span>
               <h2>A certificate to share with brands</h2>
               <p className="tl-muted">
-                Shows your latest score and confidence, valid for 30 days. Anyone can check it’s genuine with its code, so an
+                Shows your latest Trust Score and verdict, valid for 30 days. Anyone can check it’s genuine with its code, so an
                 edited copy can’t fool them. It needs a report from the last 7 days.
               </p>
               <button className="tl-btn tl-btn-grad" onClick={badge} disabled={Boolean(busy)}>

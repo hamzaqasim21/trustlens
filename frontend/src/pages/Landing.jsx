@@ -359,7 +359,7 @@ function Landing() {
                   </svg>
                 </figure>
                 <div className="ig-check-top"><h3>Misinformation</h3><span className="ig-tag ig-tag-mix">AI + RULES</span></div>
-                <p>A fine-tuned language model reads the bio and recent captions in English and Urdu, cross-checked against concrete scam wording so ordinary ads aren't called scams.</p>
+                <p>A fine-tuned language model reads the bio, recent captions and what is said in recent reels, in English and Urdu, cross-checked against concrete scam wording so ordinary ads aren't called scams.</p>
               </Reveal>
 
               <Reveal as="article" delay={240} className="ig-check">
@@ -429,7 +429,7 @@ function Landing() {
                 </figure>
                 <span className="ig-step-num">STEP 2</span>
                 <h3>Real data comes in</h3>
-                <p>The public profile, recent posts and captions are fetched live, nothing typed in by hand.</p>
+                <p>The public profile, recent posts, captions and reel audio are fetched live, nothing typed in by hand.</p>
               </Reveal>
               <Reveal as="li" delay={180} className="ig-step">
                 <figure>

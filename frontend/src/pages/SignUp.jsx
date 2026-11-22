@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Navigate, Link, useLocation, useSearchParams } from 'react-router-dom'
 import AuthSide from '../components/site/AuthSide'
 import VerifyCodeForm from '../components/VerifyCodeForm'
+import AccountTypePicker from '../components/AccountTypePicker'
 import './Auth.css'
 import { useAuth } from '../context/AuthContext'
 import { afterAuthPath, clearPendingScan, peekPendingScan } from '../lib/scanFlow'
@@ -47,6 +48,7 @@ function SignUp() {
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [accountType, setAccountType] = useState('personal')
   const [showPassword, setShowPassword] = useState(false)
   const [pendingVerification, setPendingVerification] = useState(null) // { email, message } | null
   const [error, setError] = useState('')
@@ -77,7 +79,7 @@ function SignUp() {
     setError('')
     setLoading(true)
     try {
-      const result = await signup(fullName, email, password)
+      const result = await signup(fullName, email, password, accountType)
       setPendingVerification({ email: result.email, message: result.message })
     } catch (err) {
       setError(err.message || 'Something went wrong. Try again.')
@@ -181,6 +183,12 @@ function SignUp() {
                   )}
                   <PasswordRules password={password} />
                 </label>
+
+                <div className="tl-field">
+                  <span>Account type</span>
+                  <AccountTypePicker value={accountType} onChange={setAccountType} disabled={loading} />
+                  <span className="tl-hint">You can change this later in Settings.</span>
+                </div>
 
                 {error && <p className="tl-alert tl-alert-bad" role="alert">{error}</p>}
 

@@ -21,6 +21,8 @@ from database import init_db, get_db, ScanHistory, User, VerificationCode, Appea
 from scan_service import run_scan, ScanFailed
 import watchlist
 import insights
+import creator
+import brand
 from auth import (
     hash_password, verify_password, create_token, get_current_user,
     EMAIL_RE, MAX_PASSWORD_BYTES, password_strength_error,
@@ -37,6 +39,9 @@ async def lifespan(app):
     import threading
     from model_loader import load_model
     threading.Thread(target=load_model, daemon=True).start()
+    # Same for the speech model that listens to reels (Module 12).
+    import video_transcriber
+    threading.Thread(target=video_transcriber.warm_up, daemon=True).start()
     # Daily automatic re-check of watched accounts (watchlist.py).
     watchlist.start_background_rechecks()
     yield
@@ -84,6 +89,10 @@ except Exception as _exc:  # the website itself must still start
 app.include_router(admin_router)
 app.include_router(watchlist.router)
 app.include_router(insights.router)
+app.include_router(creator.router)
+app.include_router(brand.router)
+
+ACCOUNT_TYPES = {"personal", "creator", "brand"}
 
 
 
@@ -96,6 +105,7 @@ def _user_payload(user: User) -> dict:
         "full_name": user.full_name,
         "email": user.email,
         "role": user.role or "user",
+        "account_type": user.account_type or "personal",
     }
 
 
@@ -153,8 +163,12 @@ def analyze_profile_live(
     # only presentation and can be skipped by calling the API directly.
     current_user: User = Depends(get_current_user),
 ):
+    # A brand's bulk analysis runs this same endpoint once per account and
+    # asks for source "bulk"; any other account's scans are always "web".
+    source = "bulk" if (data.get("source") == "bulk"
+                        and (current_user.account_type or "personal") == "brand") else "web"
     try:
-        return run_scan(db, current_user.id, data.get("username"), source="web")
+        return run_scan(db, current_user.id, data.get("username"), source=source)
     except ScanFailed as e:
         # "kind" lets the frontend tell "this username doesn't exist, check the
         # spelling" apart from "Instagram was slow, try again".
@@ -200,11 +214,14 @@ def signup(data: dict, db: Session = Depends(get_db)):
     full_name = (data.get("full_name") or "").strip()
     email = (data.get("email") or "").strip().lower()
     password = data.get("password") or ""
+    account_type = data.get("account_type") or "personal"
 
     if not full_name:
         raise HTTPException(400, "Please enter your name")
     if len(full_name) > 100:
         raise HTTPException(400, "Name is too long")
+    if account_type not in ACCOUNT_TYPES:
+        raise HTTPException(400, "Choose Personal, Creator or Brand as the account type")
     if not EMAIL_RE.match(email):
         raise HTTPException(400, "Please enter a valid email address")
     if len(email) > 254:  # RFC 5321 max email length
@@ -218,7 +235,8 @@ def signup(data: dict, db: Session = Depends(get_db)):
     if db.query(User).filter(User.email == email).first():
         raise HTTPException(400, "An account with this email already exists")
 
-    user = User(full_name=full_name, email=email, password_hash=hash_password(password), email_verified=False)
+    user = User(full_name=full_name, email=email, password_hash=hash_password(password), email_verified=False,
+                account_type=account_type)
     db.add(user)
     db.commit()
     db.refresh(user)
@@ -391,15 +409,23 @@ def update_me(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Change your display name. Email is deliberately not editable here:
-    changing it would need the new address verified all over again, and a
-    half-built version of that would let anyone attach an unverified email."""
-    full_name = (data.get("full_name") or "").strip()
-    if not full_name:
-        raise HTTPException(400, "Please enter your name")
-    if len(full_name) > 100:
-        raise HTTPException(400, "Name is too long")
-    current_user.full_name = full_name
+    """Change your display name and/or account type. Email is deliberately not
+    editable here: changing it would need the new address verified all over
+    again, and a half-built version of that would let anyone attach an
+    unverified email."""
+    if "full_name" not in data and "account_type" not in data:
+        raise HTTPException(400, "Nothing to change")
+    if "full_name" in data:
+        full_name = (data.get("full_name") or "").strip()
+        if not full_name:
+            raise HTTPException(400, "Please enter your name")
+        if len(full_name) > 100:
+            raise HTTPException(400, "Name is too long")
+        current_user.full_name = full_name
+    if "account_type" in data:
+        if data["account_type"] not in ACCOUNT_TYPES:
+            raise HTTPException(400, "Choose Personal, Creator or Brand as the account type")
+        current_user.account_type = data["account_type"]
     db.commit()
     return _user_payload(current_user)
 

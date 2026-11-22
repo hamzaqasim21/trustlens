@@ -40,7 +40,6 @@ from sqlalchemy.orm import Session
 
 from auth import get_current_user
 from database import get_db, User, CreatorClaim, ScanHistory, TrustBadge
-from score_confidence import assess_confidence
 
 router = APIRouter()
 
@@ -234,7 +233,7 @@ def _latest_scan(db, user, username):
 def _badge_payload(b):
     now = datetime.utcnow()
     return {"code": b.code, "username": b.username, "trust_score": b.trust_score,
-            "verdict": b.verdict, "confidence": b.confidence,
+            "verdict": b.verdict,
             "issued_at": b.issued_at.isoformat(), "expires_at": b.expires_at.isoformat(),
             "revoked": bool(b.revoked), "expired": b.expires_at < now,
             "valid": (not b.revoked) and b.expires_at >= now}
@@ -253,12 +252,9 @@ def creator_home(user: User = Depends(require_creator), db: Session = Depends(ge
         scan = _latest_scan(db, user, claim.username)
         if scan:
             result = json.loads(scan.raw_result)
-            if "confidence" not in result:
-                result["confidence"] = assess_confidence(result)
             out["scan"] = {"id": scan.id, "scanned_at": scan.scanned_at.isoformat(),
                            "trust_score": scan.corrected_trust_score or scan.trust_score,
-                           "verdict": scan.corrected_verdict or scan.verdict,
-                           "confidence": result["confidence"]}
+                           "verdict": scan.corrected_verdict or scan.verdict}
             out["audience"] = audience_report(result)
             out["tips"] = improvement_tips(result)
         badges = (db.query(TrustBadge).filter(TrustBadge.user_id == user.id)
@@ -327,7 +323,6 @@ def creator_scan(user: User = Depends(require_creator), db: Session = Depends(ge
 
 @router.post("/creator/badge")
 def issue_badge(user: User = Depends(require_creator), db: Session = Depends(get_db)):
-    import json
     claim = _verified_claim(db, user)
     if not claim:
         raise HTTPException(400, "Verify your account first.")
@@ -335,13 +330,10 @@ def issue_badge(user: User = Depends(require_creator), db: Session = Depends(get
     if not scan or scan.scanned_at < datetime.utcnow() - timedelta(days=BADGE_MAX_SCAN_AGE_DAYS):
         raise HTTPException(400, f"A badge needs a scan from the last {BADGE_MAX_SCAN_AGE_DAYS} days. "
                                  "Run a fresh scan first.")
-    result = json.loads(scan.raw_result)
-    conf = result.get("confidence") or assess_confidence(result)
     now = datetime.utcnow()
     badge = TrustBadge(code=_code(10), user_id=user.id, username=claim.username, scan_id=scan.id,
                        trust_score=scan.corrected_trust_score or scan.trust_score,
                        verdict=scan.corrected_verdict or scan.verdict,
-                       confidence=conf.get("confidence"),
                        issued_at=now, expires_at=now + timedelta(days=BADGE_VALID_DAYS))
     db.add(badge)
     db.commit()

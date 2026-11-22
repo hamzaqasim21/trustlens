@@ -40,6 +40,7 @@ from auth import require_admin
 from database import get_db, User, ScanHistory, Appeal, AuditLog
 from email_service import email_configured
 from trust_score import verdict_for
+import video_transcriber
 
 BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
 _CLASSIFIER_DIR = os.path.join(BACKEND_DIR, "misinfo_classifier", "api")
@@ -722,6 +723,17 @@ def models(db: Session = Depends(get_db)):
                 "source": "backend/fake_follower_graph/run_analysis.py — runs offline, not on live scans",
             },
             {
+                "key": "video_to_text",
+                "name": "Video-to-Text Transcriber",
+                "kind": "Pretrained speech model — OpenAI Whisper (faster-whisper, CPU), used as-is. Its text is judged by the Misinformation Classifier.",
+                "is_ml": True,
+                "artifact": _whisper_artifact(),
+                "loaded_in_memory": bool(video_transcriber._models),
+                "measurement": "pretrained",
+                "metrics": None,
+                "source": "Listens to the first 45 s of the account's 3 newest reels on every scan (a pasted reel link is always one of them). Hindi-labelled speech is written out in Urdu script. Unclear speech is shown but never scored, Urdu speech only counts when a red-flag rule backs the model's label, and other languages are shown but not scored (the classifier was only trained on English and Urdu). No accuracy figure: it was not trained or tested by us.",
+            },
+            {
                 "key": "engagement",
                 "name": "Engagement Analyzer",
                 "kind": "Rule-based (not machine learning)",
@@ -765,6 +777,15 @@ def models(db: Session = Depends(get_db)):
     }
 
 
+def _whisper_artifact():
+    """The quick speech model's weights file (shared with the extension)."""
+    import glob
+    hits = glob.glob(os.path.join(str(video_transcriber.MODELS_DIR),
+                                  f"models--Systran--faster-whisper-{video_transcriber.QUICK_MODEL}",
+                                  "snapshots", "*", "model.bin"))
+    return _file_info(hits[0]) if hits else {"present": False}
+
+
 @router.get("/health")
 def health(db: Session = Depends(get_db)):
     checks = []
@@ -803,6 +824,15 @@ def health(db: Session = Depends(get_db)):
         "name": "Misinformation model file",
         "ok": os.path.exists(mi),
         "detail": "Present" if os.path.exists(mi) else "Missing — it is not in the repo (1.1 GB); see misinfo_classifier/README.md",
+    })
+
+    w = video_transcriber.status()
+    checks.append({
+        "name": "Speech model (reel transcription)",
+        "ok": bool(w.get("available")) and _whisper_artifact()["present"],
+        "detail": (f"{w['quick_model']} loaded" if w.get("loaded") else "Present, loads on first use")
+        if w.get("available") and _whisper_artifact()["present"]
+        else f"Not available — {w.get('error') or 'model files missing; first scan downloads ~150 MB'}",
     })
 
     try:

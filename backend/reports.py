@@ -14,6 +14,7 @@
 
 import io
 import os
+import re
 from datetime import datetime
 
 import matplotlib
@@ -96,6 +97,19 @@ def _p(text, style="body"):
     return Paragraph(_esc(text), S[style])
 
 
+_RTL = re.compile(r"[\u0600-\u06FF\u0750-\u077F\uFB50-\uFDFF\uFE70-\uFEFF]")
+_SOURCE_NAMES = {"bio": "bio", "caption": "caption", "reel_speech": "reel speech"}
+
+
+def _printable(text, limit):
+    """ReportLab can't lay out right-to-left Urdu/Arabic script (letters come
+    out unjoined and back to front), so such text is named, not misprinted."""
+    text = (text or "")[:limit]
+    if len(_RTL.findall(text)) > 3:
+        return "[Urdu text: shown on the Results page; this PDF can't lay out Urdu script]"
+    return text
+
+
 def _fmt_int(n):
     try:
         return f"{int(n):,}"
@@ -145,7 +159,7 @@ def summary_line(result):
         parts.append(f"engagement is {str(eng.get('status', '')).lower()} ({eng.get('engagement_rate')}%)")
     n = len([s for s in (result.get("misinformation_sources") or []) if s.get("status") == "success"])
     if mi.get("status") != "success":
-        parts.append("no bio or caption text was available to check")
+        parts.append("no bio, caption or reel speech was available to check")
     elif mi.get("misinformation_flag"):
         parts.append(f"{misinfo_flag_count(result)} of {n} texts were flagged for misinformation")
     else:
@@ -269,12 +283,36 @@ def scan_report_pdf(result: dict, scan_id=None, scanned_at=None) -> bytes:
     if srcs:
         rows = [["Text", "Where", "Result", "Risk"]]
         for s in sorted(srcs, key=lambda x: -(x.get("risk_score") or 0))[:14]:
-            rows.append([Paragraph(_esc((s.get("text_preview") or "")[:90]), S["cell"]),
-                         s.get("source", ""),
+            rows.append([Paragraph(_esc(_printable(s.get("text_preview"), 90)), S["cell"]),
+                         _SOURCE_NAMES.get(s.get("source"), s.get("source", "")),
                          str(s.get("primary_category", "")).replace("_", " "),
                          str(s.get("risk_score", ""))])
         story += [KeepTogether([_p("Texts checked for misinformation", "h2"),
-                                _table(rows, [96 * mm, 18 * mm, 40 * mm, 14 * mm])])]
+                                _table(rows, [90 * mm, 24 * mm, 40 * mm, 14 * mm])])]
+
+    vt = result.get("video_transcription")
+    if vt:
+        block = [_p("Reel speech (Video-to-Text)", "h2"), _p(_esc(vt.get("message", "")), "body")]
+        if vt.get("items"):
+            rows = [["Reel", "What was said", "Result"]]
+            for it in vt["items"]:
+                if not it.get("available"):
+                    said, verdict = "Not listened to", it.get("not_counted_reason") or it.get("error") or ""
+                elif not it.get("text"):
+                    said, verdict = "No speech", "Nothing to check"
+                else:
+                    lang = it.get("language_name") or ""
+                    said = (f"{lang}: " if lang else "") + _printable(it.get("text"), 220)
+                    a = it.get("assessment") or {}
+                    if it.get("counted"):
+                        verdict = (str(a.get("primary_category", "")).replace("_", " ")
+                                   + f", risk {a.get('risk_score')}")
+                    else:
+                        verdict = "Not scored: " + (it.get("not_counted_reason") or "")
+                code = it.get("code", "") + (" (pasted)" if it.get("submitted") else "")
+                rows.append([code, Paragraph(_esc(said), S["cell"]), Paragraph(_esc(verdict), S["cell"])])
+            block.append(_table(rows, [30 * mm, 90 * mm, 48 * mm]))
+        story += [KeepTogether(block)]
 
     doc.build(story, onFirstPage=_footer, onLaterPages=_footer)
     return buf.getvalue()
@@ -325,3 +363,72 @@ def comparison_summary(results):
                 f"none stands out clearly. Compare the rows below before deciding.")
     return (f"@{best[1]} scores highest ({best[0]}), {round(best[0] - runner[0], 1)} points ahead of "
             f"@{runner[1]} ({runner[0]}).")
+
+
+# --------------------------------------------------------------------------- #
+# 3. Trust Badge certificate
+# --------------------------------------------------------------------------- #
+def badge_certificate_pdf(badge) -> bytes:
+    buf = io.BytesIO()
+    w, h = landscape(A4)
+    from reportlab.pdfgen import canvas as pdfcanvas
+    c = pdfcanvas.Canvas(buf, pagesize=(w, h))
+    c.setTitle(f"TrustLens Trust Badge @{badge.username}")
+    tone = TONE.get(badge.verdict, PLUM)
+
+    # Frame
+    c.setFillColor(colors.white)
+    c.rect(0, 0, w, h, fill=1, stroke=0)
+    c.setStrokeColor(PLUM)
+    c.setLineWidth(2)
+    c.rect(14 * mm, 14 * mm, w - 28 * mm, h - 28 * mm)
+    c.setStrokeColor(PINK)
+    c.setLineWidth(0.6)
+    c.rect(17 * mm, 17 * mm, w - 34 * mm, h - 34 * mm)
+
+    c.setFillColor(INK_SOFT)
+    c.setFont("TL-Mono", 10)
+    c.drawCentredString(w / 2, h - 36 * mm, "TRUSTLENS · TRUST BADGE CERTIFICATE")
+    c.setFillColor(PLUM)
+    c.setFont("TL-Bold", 34)
+    c.drawCentredString(w / 2, h - 56 * mm, f"@{badge.username}")
+    c.setFont("TL", 11)
+    c.setFillColor(INK_SOFT)
+    c.drawCentredString(w / 2, h - 65 * mm,
+                        "This Instagram account was verified as belonging to its holder and scanned by TrustLens.")
+
+    # Score
+    c.setFillColor(tone)
+    c.setFont("TL-Bold", 64)
+    c.drawCentredString(w / 2, h - 98 * mm, f"{badge.trust_score:g}")
+    c.setFont("TL-Bold", 16)
+    c.drawCentredString(w / 2, h - 109 * mm, f"{badge.verdict}  ·  Trust Score out of 100")
+    c.setFillColor(PLUM)
+    c.setFont("TL", 10)
+    c.drawCentredString(w / 2, h - 118 * mm,
+                        f"Issued {badge.issued_at:%d %b %Y}  ·  Valid until {badge.expires_at:%d %b %Y}")
+
+    # Verification
+    url = f"{FRONTEND_URL}/badge/{badge.code}"
+    from reportlab.graphics.barcode.qr import QrCodeWidget
+    from reportlab.graphics.shapes import Drawing
+    qr = QrCodeWidget(url)
+    b = qr.getBounds()
+    size = 30 * mm
+    d = Drawing(size, size, transform=[size / (b[2] - b[0]), 0, 0, size / (b[3] - b[1]), 0, 0])
+    d.add(qr)
+    from reportlab.graphics import renderPDF
+    renderPDF.draw(d, c, 26 * mm, 24 * mm)
+    c.setFont("TL-Mono", 9)
+    c.setFillColor(PLUM)
+    c.drawString(62 * mm, 44 * mm, f"Badge code: {badge.code}")
+    c.drawString(62 * mm, 38 * mm, f"Check it is genuine: {url}")
+    c.setFont("TL", 8)
+    c.setFillColor(INK_SOFT)
+    c.drawString(62 * mm, 31 * mm, "The page at that address shows the real record. If it disagrees with this "
+                                   "certificate, trust the page.")
+    c.drawRightString(w - 26 * mm, 24 * mm,
+                      "Automated analysis of public data; a score is evidence, not a guarantee.")
+    c.showPage()
+    c.save()
+    return buf.getvalue()

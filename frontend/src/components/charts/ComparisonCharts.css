@@ -1,0 +1,41 @@
+.ch-card {
+  margin: 0;
+  display: grid;
+  gap: 12px;
+  align-content: start;
+  padding: clamp(18px, 2vw, 24px);
+  min-width: 0;
+}
+.ch-head { display: grid; gap: 4px; }
+.ch-eyebrow { font: 700 11px/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-soft); }
+.ch-head strong { font-size: 19px; letter-spacing: -0.01em; }
+.ch-body { min-width: 0; }
+.ch-note { font-size: 12.5px; color: var(--ink-soft); line-height: 1.45; }
+.ch-toggle {
+  justify-self: start;
+  border: 0;
+  background: none;
+  padding: 2px 0;
+  font: 700 13px/1 var(--display);
+  color: var(--pink);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.ch-table-wrap { overflow-x: auto; }
+.ch-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.ch-table th {
+  text-align: left;
+  font: 700 11px/1.2 var(--mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  padding: 8px 10px;
+  border-bottom: 2px solid var(--ink);
+}
+.ch-table td { padding: 8px 10px; border-bottom: 1px solid var(--ink-line); font-variant-numeric: tabular-nums; }
+
+.ch-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+@media (max-width: 860px) { .ch-grid { grid-template-columns: 1fr; } }
+
+.recharts-wrapper:focus, .recharts-surface:focus { outline: none; }

@@ -25,3 +25,5 @@ backend/misinfo_classifier/api/model/*.zip
 
 # Automatic database backups (real emails and password hashes, never commit).
 backend/backups/
+# Reel audio downloaded during a scan (deleted right after transcription)
+backend/.tmp_audio/

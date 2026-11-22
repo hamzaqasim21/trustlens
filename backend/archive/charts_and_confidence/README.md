@@ -39,3 +39,9 @@ kept here instead of deleted.
 Still live after the removal (not part of this archive): PDF and CSV export,
 the Watch button and watchlist, comparison of 2-4 accounts, the admin console
 (whose own charts are separate hand-drawn code and were not touched).
+
+## Partly restored 2026-11-22
+The Comparison page bar chart and radar chart are live again, as a slimmed-down
+`frontend/src/components/charts/ComparisonCharts.jsx` (recharts reinstalled).
+Everything else here (Results-page charts, chart summaries, PDF chart images,
+the confidence %) is still set aside.

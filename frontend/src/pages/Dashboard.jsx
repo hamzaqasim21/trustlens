@@ -6,7 +6,7 @@ import CountUp from '../components/CountUp'
 import WatchlistPanel from '../components/WatchlistPanel'
 import { getScanHistory, getMyAppeals, downloadScansCsv } from '../api/trustlens'
 import { useAuth } from '../context/AuthContext'
-import { parseUsername, scanPath, USERNAME_HELP } from '../lib/scanFlow'
+import { parseScanTarget, scanPath, SCAN_HELP } from '../lib/scanFlow'
 import { formatDate, formatDateTime, toneFor } from '../lib/verdict'
 import './Dashboard.css'
 
@@ -40,12 +40,12 @@ function QuickScan() {
 
   function submit(e) {
     e.preventDefault()
-    const name = parseUsername(value)
-    if (!name) {
-      setError(value.trim() ? USERNAME_HELP : 'Type a username first, for example @lahore.eats')
+    const target = parseScanTarget(value)
+    if (!target) {
+      setError(value.trim() ? SCAN_HELP : 'Type a username first, for example @lahore.eats')
       return
     }
-    navigate(scanPath(name))
+    navigate(scanPath(target.query))
   }
 
   return (
@@ -53,7 +53,7 @@ function QuickScan() {
       <div className="tl-scanbar">
         <span className="tl-scanbar-at" aria-hidden="true">@</span>
         <input
-          aria-label="Instagram username or profile link"
+          aria-label="Instagram username, profile link or reel link"
           value={value}
           onChange={(e) => { setValue(e.target.value); setError('') }}
           placeholder="Scan a new profile"

@@ -214,3 +214,36 @@
   .rs-comp-fill, .rs-bd-fill, .rs-scale-pin, .rs-bd { animation: none; }
 }
 
+
+/* ================================================================ reel speech (Video-to-Text) */
+.rs-reels-head { display: grid; grid-template-columns: 1fr minmax(0, 520px); gap: 32px; align-items: end; margin-bottom: clamp(28px, 4vw, 44px); }
+.rs-reels-copy { display: grid; gap: 14px; }
+.rs-reels-msg { font-weight: 700; }
+.rs-reels-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 18px; }
+.rs-reel { display: grid; gap: 14px; align-content: start; padding: 20px 22px; height: 100%; }
+.rs-reel-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+.rs-reel-link { font-size: 13.5px; color: var(--ink-soft); text-decoration: none; overflow-wrap: anywhere; }
+.rs-reel-link:hover { color: var(--pink); }
+.rs-reel-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.rs-reel-text {
+  margin: 0;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: var(--lav);
+  font-size: 15.5px;
+  line-height: 1.6;
+  max-height: 13.5em;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+  unicode-bidi: plaintext;
+}
+.rs-reel-text:lang(ur) { font-size: 17px; line-height: 1.9; }
+.rs-reel-empty { color: var(--ink-soft); font-style: italic; }
+.rs-reel-status { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 14.5px; line-height: 1.45; }
+.rs-reel-foot { font-size: 12px; color: var(--ink-mute); overflow-wrap: anywhere; }
+.rs-submitted { max-width: 60ch; }
+.rs-submitted a { color: inherit; font-weight: 800; }
+
+@media (max-width: 860px) {
+  .rs-reels-head { grid-template-columns: 1fr; align-items: start; }
+}

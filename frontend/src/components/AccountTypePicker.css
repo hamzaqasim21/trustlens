@@ -18,3 +18,4 @@
 .atp-option strong { font-size: 14.5px; }
 .atp-option span { font-size: 12.5px; line-height: 1.4; color: var(--ink-soft); }
 @media (max-width: 560px) { .atp { grid-template-columns: 1fr; } }
+.atp.atp-stacked { grid-template-columns: 1fr; }
