@@ -23,6 +23,8 @@ function Details({ entry }) {
       return <>{d.email}{d.reason ? ` — “${d.reason}”` : ''}</>
     case 'user.role_change':
       return <>{d.email}: {d.from_role ? `${d.from_role} → ` : ''}{d.to_role}{d.via ? ` (via ${d.via})` : ''}</>
+    case 'user.delete':
+      return <>{d.email}{d.via ? ` (via ${d.via})` : ''}</>
     case 'appeal.resolve':
       return (
         <>

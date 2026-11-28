@@ -79,21 +79,41 @@ def verify_password(password: str, password_hash: str) -> bool:
 
 
 def create_token(user_id: int) -> str:
+    now = datetime.now(timezone.utc)
     payload = {
         "user_id": user_id,
-        "exp": datetime.now(timezone.utc) + timedelta(hours=TOKEN_EXPIRES_HOURS),
+        # When the token was made. SQLite can give a deleted account's id to
+        # the next new account, so without this an old token from the deleted
+        # account would log straight into the new one (see _token_predates).
+        "iat": int(now.timestamp()),
+        "exp": now + timedelta(hours=TOKEN_EXPIRES_HOURS),
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 
-def _decode_token(token: str) -> int:
+def _decode_token(token: str) -> tuple[int, int | None]:
     try:
         payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
-        return payload["user_id"]
+        return payload["user_id"], payload.get("iat")
     except jwt.ExpiredSignatureError:
         raise HTTPException(401, "Session expired, please log in again")
     except jwt.InvalidTokenError:
         raise HTTPException(401, "Invalid session token")
+
+
+def _token_predates(issued_at, user) -> bool:
+    """True when the token can't belong to this account: it was made before
+    the account existed (a deleted account's id handed to a new sign-up), or
+    it is an older token from before issue times were recorded, which can't
+    be checked and so isn't trusted. Either way: log in again."""
+    if issued_at is None:
+        return True
+    created = user.created_at
+    if created is None:
+        return False
+    # created_at is stored as naive UTC (datetime.utcnow); a whole-second
+    # allowance covers iat being rounded down to the second.
+    return issued_at + 1 < created.replace(tzinfo=timezone.utc).timestamp()
 
 
 def get_current_user(
@@ -105,11 +125,11 @@ def get_current_user(
         raise HTTPException(401, "Not logged in")
 
     token = authorization.removeprefix("Bearer ").strip()
-    user_id = _decode_token(token)
+    user_id, issued_at = _decode_token(token)
 
     user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(401, "User no longer exists")
+    if not user or _token_predates(issued_at, user):
+        raise HTTPException(401, "Session expired, please log in again")
     # Checked on every request, not only at login: a suspension has to take
     # effect immediately, even for someone holding a still-valid 7-day token.
     if user.is_active is False:
@@ -139,10 +159,12 @@ def get_current_user_optional(
     if not authorization or not authorization.startswith("Bearer "):
         return None
     try:
-        user_id = _decode_token(authorization.removeprefix("Bearer ").strip())
+        user_id, issued_at = _decode_token(authorization.removeprefix("Bearer ").strip())
     except HTTPException:
         return None
     user = db.query(User).filter(User.id == user_id).first()
+    if user is not None and _token_predates(issued_at, user):
+        return None
     # A suspended user can still use the public scanner like any visitor,
     # but the scan is not attached to their account.
     if user is not None and user.is_active is False:

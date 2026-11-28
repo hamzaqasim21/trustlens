@@ -54,6 +54,7 @@ const ACTION_LABELS = {
   'user.suspend': 'Suspended an account',
   'user.reactivate': 'Reactivated an account',
   'user.role_change': 'Changed an account role',
+  'user.delete': 'Deleted an account',
   'appeal.resolve': 'Decided a score dispute',
   'feedback.export': 'Exported the retraining dataset',
 }

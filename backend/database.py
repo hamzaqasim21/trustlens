@@ -231,6 +231,21 @@ class TrustBadge(Base):
     revoked = Column(Boolean, default=False)
 
 
+def delete_user_and_data(db, user):
+    """Permanently removes an account and every row tied to it. Used by
+    Settings -> Delete account (DELETE /me) and delete_user.py, so the two can
+    never disagree about what "everything" means. Does not commit."""
+    scan_ids = [s.id for s in db.query(ScanHistory.id).filter(ScanHistory.user_id == user.id).all()]
+    db.query(Appeal).filter(Appeal.user_id == user.id).delete(synchronize_session=False)
+    if scan_ids:
+        db.query(Appeal).filter(Appeal.scan_id.in_(scan_ids)).delete(synchronize_session=False)
+        db.query(Alert).filter(Alert.scan_id.in_(scan_ids)).delete(synchronize_session=False)
+    for model in (Alert, WatchedAccount, ApiKey, CreatorClaim, TrustBadge, VerificationCode):
+        db.query(model).filter(model.user_id == user.id).delete(synchronize_session=False)
+    db.query(ScanHistory).filter(ScanHistory.user_id == user.id).delete(synchronize_session=False)
+    db.delete(user)
+
+
 # Columns added to tables that already exist on people's machines.
 # create_all() only creates *missing tables*; it never alters an existing one,
 # so without this an existing trustlens.db would crash on the first query

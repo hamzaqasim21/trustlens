@@ -11,7 +11,7 @@ scoring functions, so scores are computed the real way).
 import json
 import os
 import tempfile
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 _TMP_DB = os.path.join(tempfile.mkdtemp(prefix="trustlens_test_dash_"), "test.db")
 os.environ["DATABASE_URL"] = f"sqlite:///{_TMP_DB}"
@@ -342,3 +342,46 @@ def test_tips_follow_what_the_scan_found():
 def test_engagement_consistency_flags_a_spike():
     c = creator_mod.engagement_consistency([{"likes": v} for v in [100, 110, 95, 105, 2000, 98]])
     assert c["label"] != "Steady" and len(c["spike_posts"]) == 1
+
+
+def test_deleting_an_account_removes_everything_tied_to_it(scans):
+    from database import WatchedAccount, ApiKey, CreatorClaim
+    uid = _user(account_type="brand")
+    client.post("/analyze-live", json={"username": "gone.acc"}, headers=_auth(uid))
+    client.post("/watchlist", json={"username": "gone.acc"}, headers=_auth(uid))
+    client.post("/api-keys", json={"name": "k"}, headers=_auth(uid))
+    db = SessionLocal()
+    db.add(CreatorClaim(user_id=uid, username="gone.acc", code="TL-XXXXXX"))
+    db.add(Alert(user_id=uid, username="gone.acc", old_score=90, new_score=50))
+    db.commit()
+    db.close()
+
+    assert client.request("DELETE", "/me", json={"password": "wrong"}, headers=_auth(uid)).status_code == 400
+    assert client.request("DELETE", "/me", json={"password": "pass word 42"}, headers=_auth(uid)).status_code == 200
+    db = SessionLocal()
+    for model in (ScanHistory, WatchedAccount, ApiKey, CreatorClaim, Alert):
+        assert db.query(model).filter(model.user_id == uid).count() == 0, model.__name__
+    assert db.get(User, uid) is None
+    db.close()
+
+
+def test_a_deleted_accounts_token_cannot_open_a_new_account_with_the_same_id():
+    import jwt as pyjwt
+    from auth import JWT_SECRET, JWT_ALGORITHM
+    uid = _user()
+    now = datetime.utcnow()
+    an_hour_ago = int(datetime.now(timezone.utc).timestamp()) - 3600
+    # A token made an hour before this account existed: what an old browser
+    # still holds when SQLite hands a deleted account's id to a new sign-up.
+    old = pyjwt.encode({"user_id": uid, "iat": an_hour_ago, "exp": now + timedelta(days=1)},
+                       JWT_SECRET, algorithm=JWT_ALGORITHM)
+    db = SessionLocal()
+    db.get(User, uid).created_at = now
+    db.commit()
+    db.close()
+    assert client.get("/me", headers={"Authorization": f"Bearer {old}"}).status_code == 401
+    # Tokens from before issue times were recorded can't be checked: log in again.
+    legacy = pyjwt.encode({"user_id": uid, "exp": now + timedelta(days=1)}, JWT_SECRET, algorithm=JWT_ALGORITHM)
+    assert client.get("/me", headers={"Authorization": f"Bearer {legacy}"}).status_code == 401
+    # A normal token still works.
+    assert client.get("/me", headers=_auth(uid)).status_code == 200

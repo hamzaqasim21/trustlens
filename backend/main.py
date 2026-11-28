@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 from fake_follower import analyze_fake_followers
 from engagement_analyzer import analyze_engagement
 from trust_score import calculate_trust_score
-from database import init_db, get_db, ScanHistory, User, VerificationCode, Appeal
+from database import init_db, get_db, ScanHistory, User, VerificationCode, Appeal, delete_user_and_data
 from scan_service import run_scan, ScanFailed
 import watchlist
 import insights
@@ -471,13 +471,9 @@ def delete_me(
     if current_user.role == "admin":
         raise HTTPException(400, "Admin accounts can't be deleted from here. Ask another admin to remove your admin role first.")
 
-    scan_ids = [s.id for s in db.query(ScanHistory.id).filter(ScanHistory.user_id == current_user.id).all()]
-    db.query(Appeal).filter(Appeal.user_id == current_user.id).delete(synchronize_session=False)
-    if scan_ids:
-        db.query(Appeal).filter(Appeal.scan_id.in_(scan_ids)).delete(synchronize_session=False)
-    db.query(ScanHistory).filter(ScanHistory.user_id == current_user.id).delete(synchronize_session=False)
-    db.query(VerificationCode).filter(VerificationCode.user_id == current_user.id).delete(synchronize_session=False)
-    db.delete(current_user)
+    # Scans, disputes, watchlist, alerts, API keys, creator claims, badges,
+    # verification codes - all of it (database.delete_user_and_data).
+    delete_user_and_data(db, current_user)
     db.commit()
     return {"message": "Your account and scan history have been deleted."}
 
